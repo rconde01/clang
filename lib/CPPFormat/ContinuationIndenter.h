@@ -18,7 +18,7 @@
 
 #include "Encoding.h"
 #include "FormatToken.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "llvm/Support/Regex.h"
 
 namespace clang

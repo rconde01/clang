@@ -18,7 +18,7 @@
 
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/OperatorPrecedence.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "clang/Lex/Lexer.h"
 #include <memory>
 #include <unordered_set>

@@ -18,7 +18,7 @@
 
 #include "FormatToken.h"
 #include "clang/Basic/IdentifierTable.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "llvm/Support/Regex.h"
 #include <list>
 #include <stack>

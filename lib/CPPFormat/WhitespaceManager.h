@@ -18,7 +18,7 @@
 
 #include "TokenAnnotator.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include <string>
 
 namespace clang

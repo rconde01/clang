@@ -13,7 +13,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "AffectedRangeManager.h"
 #include "ContinuationIndenter.h"
 #include "FormatTokenLexer.h"

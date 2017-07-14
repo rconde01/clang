@@ -17,7 +17,7 @@
 #include "WhitespaceManager.h"
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Basic/SourceManager.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "format-indenter"
