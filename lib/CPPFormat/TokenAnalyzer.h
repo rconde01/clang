@@ -31,73 +31,93 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Debug.h"
 
-namespace clang {
-namespace format {
+namespace clang
+{
+namespace format
+{
 
-class Environment {
+class Environment
+{
 public:
-  Environment(SourceManager &SM, FileID ID, ArrayRef<CharSourceRange> Ranges)
-      : ID(ID), CharRanges(Ranges.begin(), Ranges.end()), SM(SM) {}
+   Environment(SourceManager & SM, FileID ID, ArrayRef<CharSourceRange> Ranges)
+   : ID(ID), CharRanges(Ranges.begin(), Ranges.end()), SM(SM)
+   {
+   }
 
-  Environment(FileID ID, std::unique_ptr<FileManager> FileMgr,
-              std::unique_ptr<SourceManager> VirtualSM,
-              std::unique_ptr<DiagnosticsEngine> Diagnostics,
-              const std::vector<CharSourceRange> &CharRanges)
-      : ID(ID), CharRanges(CharRanges.begin(), CharRanges.end()),
-        SM(*VirtualSM), FileMgr(std::move(FileMgr)),
-        VirtualSM(std::move(VirtualSM)), Diagnostics(std::move(Diagnostics)) {}
+   Environment(FileID                               ID,
+               std::unique_ptr<FileManager>         FileMgr,
+               std::unique_ptr<SourceManager>       VirtualSM,
+               std::unique_ptr<DiagnosticsEngine>   Diagnostics,
+               const std::vector<CharSourceRange> & CharRanges)
+   : ID(ID),
+     CharRanges(CharRanges.begin(), CharRanges.end()),
+     SM(*VirtualSM),
+     FileMgr(std::move(FileMgr)),
+     VirtualSM(std::move(VirtualSM)),
+     Diagnostics(std::move(Diagnostics))
+   {
+   }
 
-  // This sets up an virtual file system with file \p FileName containing \p
-  // Code.
-  static std::unique_ptr<Environment>
-  CreateVirtualEnvironment(StringRef Code, StringRef FileName,
-                           ArrayRef<tooling::Range> Ranges);
+   // This sets up an virtual file system with file \p FileName containing \p
+   // Code.
+   static std::unique_ptr<Environment> CreateVirtualEnvironment(
+       StringRef Code, StringRef FileName, ArrayRef<tooling::Range> Ranges);
 
-  FileID getFileID() const { return ID; }
+   FileID getFileID() const
+   {
+      return ID;
+   }
 
-  ArrayRef<CharSourceRange> getCharRanges() const { return CharRanges; }
+   ArrayRef<CharSourceRange> getCharRanges() const
+   {
+      return CharRanges;
+   }
 
-  const SourceManager &getSourceManager() const { return SM; }
+   const SourceManager & getSourceManager() const
+   {
+      return SM;
+   }
 
 private:
-  FileID ID;
-  SmallVector<CharSourceRange, 8> CharRanges;
-  SourceManager &SM;
+   FileID                          ID;
+   SmallVector<CharSourceRange, 8> CharRanges;
+   SourceManager &                 SM;
 
-  // The order of these fields are important - they should be in the same order
-  // as they are created in `CreateVirtualEnvironment` so that they can be
-  // deleted in the reverse order as they are created.
-  std::unique_ptr<FileManager> FileMgr;
-  std::unique_ptr<SourceManager> VirtualSM;
-  std::unique_ptr<DiagnosticsEngine> Diagnostics;
+   // The order of these fields are important - they should be in the same order
+   // as they are created in `CreateVirtualEnvironment` so that they can be
+   // deleted in the reverse order as they are created.
+   std::unique_ptr<FileManager>       FileMgr;
+   std::unique_ptr<SourceManager>     VirtualSM;
+   std::unique_ptr<DiagnosticsEngine> Diagnostics;
 };
 
-class TokenAnalyzer : public UnwrappedLineConsumer {
+class TokenAnalyzer : public UnwrappedLineConsumer
+{
 public:
-  TokenAnalyzer(const Environment &Env, const FormatStyle &Style);
+   TokenAnalyzer(const Environment & Env, const FormatStyle & Style);
 
-  tooling::Replacements process();
+   tooling::Replacements process();
 
 protected:
-  virtual tooling::Replacements
-  analyze(TokenAnnotator &Annotator,
-          SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
-          FormatTokenLexer &Tokens) = 0;
+   virtual tooling::Replacements
+   analyze(TokenAnnotator &                   Annotator,
+           SmallVectorImpl<AnnotatedLine *> & AnnotatedLines,
+           FormatTokenLexer &                 Tokens) = 0;
 
-  void consumeUnwrappedLine(const UnwrappedLine &TheLine) override;
+   void consumeUnwrappedLine(const UnwrappedLine & TheLine) override;
 
-  void finishRun() override;
+   void finishRun() override;
 
-  FormatStyle Style;
-  // Stores Style, FileID and SourceManager etc.
-  const Environment &Env;
-  // AffectedRangeMgr stores ranges to be fixed.
-  AffectedRangeManager AffectedRangeMgr;
-  SmallVector<SmallVector<UnwrappedLine, 16>, 2> UnwrappedLines;
-  encoding::Encoding Encoding;
+   FormatStyle Style;
+   // Stores Style, FileID and SourceManager etc.
+   const Environment & Env;
+   // AffectedRangeMgr stores ranges to be fixed.
+   AffectedRangeManager                           AffectedRangeMgr;
+   SmallVector<SmallVector<UnwrappedLine, 16>, 2> UnwrappedLines;
+   encoding::Encoding                             Encoding;
 };
 
-} // end namespace format
-} // end namespace clang
+}   // end namespace format
+}   // end namespace clang
 
 #endif

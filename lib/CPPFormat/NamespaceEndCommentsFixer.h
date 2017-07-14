@@ -18,20 +18,24 @@
 
 #include "TokenAnalyzer.h"
 
-namespace clang {
-namespace format {
+namespace clang
+{
+namespace format
+{
 
-class NamespaceEndCommentsFixer : public TokenAnalyzer {
+class NamespaceEndCommentsFixer : public TokenAnalyzer
+{
 public:
-  NamespaceEndCommentsFixer(const Environment &Env, const FormatStyle &Style);
+   NamespaceEndCommentsFixer(const Environment & Env,
+                             const FormatStyle & Style);
 
-  tooling::Replacements
-  analyze(TokenAnnotator &Annotator,
-          SmallVectorImpl<AnnotatedLine *> &AnnotatedLines,
-          FormatTokenLexer &Tokens) override;
+   tooling::Replacements
+   analyze(TokenAnnotator &                   Annotator,
+           SmallVectorImpl<AnnotatedLine *> & AnnotatedLines,
+           FormatTokenLexer &                 Tokens) override;
 };
 
-} // end namespace format
-} // end namespace clang
+}   // end namespace format
+}   // end namespace clang
 
 #endif

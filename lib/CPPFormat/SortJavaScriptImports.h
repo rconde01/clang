@@ -20,17 +20,20 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
-namespace clang {
-namespace format {
+namespace clang
+{
+namespace format
+{
 
 // Sort JavaScript ES6 imports/exports in ``Code``. The generated replacements
 // only monotonically increase the length of the given code.
-tooling::Replacements sortJavaScriptImports(const FormatStyle &Style,
-                                            StringRef Code,
-                                            ArrayRef<tooling::Range> Ranges,
-                                            StringRef FileName);
+tooling::Replacements
+sortJavaScriptImports(const FormatStyle &      Style,
+                      StringRef                Code,
+                      ArrayRef<tooling::Range> Ranges,
+                      StringRef                FileName);
 
-} // end namespace format
-} // end namespace clang
+}   // end namespace format
+}   // end namespace clang
 
 #endif

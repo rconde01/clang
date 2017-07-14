@@ -25,91 +25,101 @@
 
 #include <stack>
 
-namespace clang {
-namespace format {
+namespace clang
+{
+namespace format
+{
 
-enum LexerState {
-  NORMAL,
-  TEMPLATE_STRING,
-  TOKEN_STASHED,
+enum LexerState
+{
+   NORMAL,
+   TEMPLATE_STRING,
+   TOKEN_STASHED,
 };
 
-class FormatTokenLexer {
+class FormatTokenLexer
+{
 public:
-  FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
-                   const FormatStyle &Style, encoding::Encoding Encoding);
+   FormatTokenLexer(const SourceManager & SourceMgr,
+                    FileID                ID,
+                    const FormatStyle &   Style,
+                    encoding::Encoding    Encoding);
 
-  ArrayRef<FormatToken *> lex();
+   ArrayRef<FormatToken *> lex();
 
-  const AdditionalKeywords &getKeywords() { return Keywords; }
+   const AdditionalKeywords & getKeywords()
+   {
+      return Keywords;
+   }
 
 private:
-  void tryMergePreviousTokens();
+   void tryMergePreviousTokens();
 
-  bool tryMergeLessLess();
-  bool tryMergeNSStringLiteral();
+   bool tryMergeLessLess();
+   bool tryMergeNSStringLiteral();
 
-  bool tryMergeTokens(ArrayRef<tok::TokenKind> Kinds, TokenType NewType);
+   bool tryMergeTokens(ArrayRef<tok::TokenKind> Kinds, TokenType NewType);
 
-  // Returns \c true if \p Tok can only be followed by an operand in JavaScript.
-  bool precedesOperand(FormatToken *Tok);
+   // Returns \c true if \p Tok can only be followed by an operand in
+   // JavaScript.
+   bool precedesOperand(FormatToken * Tok);
 
-  bool canPrecedeRegexLiteral(FormatToken *Prev);
+   bool canPrecedeRegexLiteral(FormatToken * Prev);
 
-  // Tries to parse a JavaScript Regex literal starting at the current token,
-  // if that begins with a slash and is in a location where JavaScript allows
-  // regex literals. Changes the current token to a regex literal and updates
-  // its text if successful.
-  void tryParseJSRegexLiteral();
+   // Tries to parse a JavaScript Regex literal starting at the current token,
+   // if that begins with a slash and is in a location where JavaScript allows
+   // regex literals. Changes the current token to a regex literal and updates
+   // its text if successful.
+   void tryParseJSRegexLiteral();
 
-  // Handles JavaScript template strings.
-  //
-  // JavaScript template strings use backticks ('`') as delimiters, and allow
-  // embedding expressions nested in ${expr-here}. Template strings can be
-  // nested recursively, i.e. expressions can contain template strings in turn.
-  //
-  // The code below parses starting from a backtick, up to a closing backtick or
-  // an opening ${. It also maintains a stack of lexing contexts to handle
-  // nested template parts by balancing curly braces.
-  void handleTemplateStrings();
+   // Handles JavaScript template strings.
+   //
+   // JavaScript template strings use backticks ('`') as delimiters, and allow
+   // embedding expressions nested in ${expr-here}. Template strings can be
+   // nested recursively, i.e. expressions can contain template strings in turn.
+   //
+   // The code below parses starting from a backtick, up to a closing backtick
+   // or an opening ${. It also maintains a stack of lexing contexts to handle
+   // nested template parts by balancing curly braces.
+   void handleTemplateStrings();
 
-  bool tryMerge_TMacro();
+   bool tryMerge_TMacro();
 
-  bool tryMergeConflictMarkers();
+   bool tryMergeConflictMarkers();
 
-  FormatToken *getStashedToken();
+   FormatToken * getStashedToken();
 
-  FormatToken *getNextToken();
+   FormatToken * getNextToken();
 
-  FormatToken *FormatTok;
-  bool IsFirstToken;
-  std::stack<LexerState> StateStack;
-  unsigned Column;
-  unsigned TrailingWhitespace;
-  std::unique_ptr<Lexer> Lex;
-  const SourceManager &SourceMgr;
-  FileID ID;
-  const FormatStyle &Style;
-  IdentifierTable IdentTable;
-  AdditionalKeywords Keywords;
-  encoding::Encoding Encoding;
-  llvm::SpecificBumpPtrAllocator<FormatToken> Allocator;
-  // Index (in 'Tokens') of the last token that starts a new line.
-  unsigned FirstInLineIndex;
-  SmallVector<FormatToken *, 16> Tokens;
-  SmallVector<IdentifierInfo *, 8> ForEachMacros;
+   FormatToken *                               FormatTok;
+   bool                                        IsFirstToken;
+   std::stack<LexerState>                      StateStack;
+   unsigned                                    Column;
+   unsigned                                    TrailingWhitespace;
+   std::unique_ptr<Lexer>                      Lex;
+   const SourceManager &                       SourceMgr;
+   FileID                                      ID;
+   const FormatStyle &                         Style;
+   IdentifierTable                             IdentTable;
+   AdditionalKeywords                          Keywords;
+   encoding::Encoding                          Encoding;
+   llvm::SpecificBumpPtrAllocator<FormatToken> Allocator;
+   // Index (in 'Tokens') of the last token that starts a new line.
+   unsigned                         FirstInLineIndex;
+   SmallVector<FormatToken *, 16>   Tokens;
+   SmallVector<IdentifierInfo *, 8> ForEachMacros;
 
-  bool FormattingDisabled;
+   bool FormattingDisabled;
 
-  llvm::Regex MacroBlockBeginRegex;
-  llvm::Regex MacroBlockEndRegex;
+   llvm::Regex MacroBlockBeginRegex;
+   llvm::Regex MacroBlockEndRegex;
 
-  void readRawToken(FormatToken &Tok);
+   void readRawToken(FormatToken & Tok);
 
-  void resetLexer(unsigned Offset);
+   void resetLexer(unsigned Offset);
 };
 
-} // namespace format
-} // namespace clang
+}   // namespace format
+}   // namespace clang
 
 #endif
