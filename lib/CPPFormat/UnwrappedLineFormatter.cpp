@@ -111,9 +111,6 @@ private:
    /// characters to the left from their level.
    int getIndentOffset(const FormatToken & RootToken)
    {
-      if(Style.Language == FormatStyle::LK_Java
-         || Style.Language == FormatStyle::LK_JavaScript)
-         return 0;
       if(RootToken.isAccessSpecifier(false) || RootToken.isObjCAccessSpecifier()
          || (RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals)
              && RootToken.Next && RootToken.Next->is(tok::colon)))
@@ -474,8 +471,7 @@ private:
       // Don't merge ObjC @ keywords and methods.
       // FIXME: If an option to allow short exception handling clauses on a
       // single line is added, change this to not return for @try and friends.
-      if(Style.Language != FormatStyle::LK_Java
-         && Line.First->isOneOf(tok::at, tok::minus, tok::plus))
+      if(Line.First->isOneOf(tok::at, tok::minus, tok::plus))
          return 0;
 
       // Check that the current line allows merging. This depends on whether we
@@ -1102,8 +1098,7 @@ UnwrappedLineFormatter::format(const SmallVectorImpl<AnnotatedLine *> & Lines,
          bool     FitsIntoOneLine =
              TheLine.Last->TotalLength + Indent <= ColumnLimit
              || (TheLine.Type == LT_ImportStatement
-                 && (Style.Language != FormatStyle::LK_JavaScript
-                     || !Style.JavaScriptWrapImports));
+                 && !Style.JavaScriptWrapImports);
 
          if(Style.ColumnLimit == 0)
             NoColumnLimitLineFormatter(Indenter, Whitespaces, Style, this)

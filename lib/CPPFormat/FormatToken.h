@@ -527,13 +527,11 @@ struct FormatToken
    {
       if(is(TT_TemplateString) && opensScope())
          return true;
+
       return is(TT_ArrayInitializerLSquare)
              || (is(tok::l_brace)
                  && (BlockKind == BK_Block || is(TT_DictLiteral)
-                     || (!Style.Cpp11BracedListStyle && NestingLevel == 0)))
-             || (is(tok::less)
-                 && (Style.Language == FormatStyle::LK_Proto
-                     || Style.Language == FormatStyle::LK_TextProto));
+                     || (!Style.Cpp11BracedListStyle && NestingLevel == 0)));
    }
 
    /// \brief Same as opensBlockOrBlockTypeList, but for the closing token.

@@ -50,20 +50,6 @@ namespace llvm
 {
 namespace yaml
 {
-template<>
-struct ScalarEnumerationTraits<FormatStyle::LanguageKind>
-{
-   static void enumeration(IO & IO, FormatStyle::LanguageKind & Value)
-   {
-      IO.enumCase(Value, "Cpp", FormatStyle::LK_Cpp);
-      IO.enumCase(Value, "Java", FormatStyle::LK_Java);
-      IO.enumCase(Value, "JavaScript", FormatStyle::LK_JavaScript);
-      IO.enumCase(Value, "ObjC", FormatStyle::LK_ObjC);
-      IO.enumCase(Value, "Proto", FormatStyle::LK_Proto);
-      IO.enumCase(Value, "TableGen", FormatStyle::LK_TableGen);
-      IO.enumCase(Value, "TextProto", FormatStyle::LK_TextProto);
-   }
-};
 
 template<>
 struct ScalarEnumerationTraits<FormatStyle::LanguageStandard>
@@ -272,10 +258,6 @@ struct MappingTraits<FormatStyle>
 {
    static void mapping(IO & IO, FormatStyle & Style)
    {
-      // When reading, read the language first, we need it for
-      // getPredefinedStyle.
-      IO.mapOptional("Language", Style.Language);
-
       if(IO.outputting())
       {
          StringRef StylesArray[] = {
@@ -285,7 +267,7 @@ struct MappingTraits<FormatStyle>
          {
             StringRef   StyleName(Styles[i]);
             FormatStyle PredefinedStyle;
-            if(getPredefinedStyle(StyleName, Style.Language, &PredefinedStyle)
+            if(getPredefinedStyle(StyleName, &PredefinedStyle)
                && Style == PredefinedStyle)
             {
                IO.mapOptional("# BasedOnStyle", StyleName);
@@ -299,16 +281,12 @@ struct MappingTraits<FormatStyle>
          IO.mapOptional("BasedOnStyle", BasedOnStyle);
          if(!BasedOnStyle.empty())
          {
-            FormatStyle::LanguageKind OldLanguage = Style.Language;
-            FormatStyle::LanguageKind Language =
-                ((FormatStyle *)IO.getContext())->Language;
-            if(!getPredefinedStyle(BasedOnStyle, Language, &Style))
+            if(!getPredefinedStyle(BasedOnStyle, &Style))
             {
                IO.setError(
                    Twine("Unknown value for BasedOnStyle: ", BasedOnStyle));
                return;
             }
-            Style.Language = OldLanguage;
          }
       }
 
@@ -514,15 +492,7 @@ struct DocumentListTraits<std::vector<FormatStyle>>
       {
          assert(Index == Seq.size());
          FormatStyle Template;
-         if(Seq.size() > 0 && Seq[0].Language == FormatStyle::LK_None)
-         {
-            Template = Seq[0];
-         }
-         else
-         {
-            Template          = *((const FormatStyle *)IO.getContext());
-            Template.Language = FormatStyle::LK_None;
-         }
+         Template = *((const FormatStyle *)IO.getContext());
          Seq.resize(Index + 1, Template);
       }
       return Seq[Index];
@@ -657,7 +627,6 @@ FormatStyle
 getLLVMStyle()
 {
    FormatStyle LLVMStyle;
-   LLVMStyle.Language                     = FormatStyle::LK_Cpp;
    LLVMStyle.AccessModifierOffset         = -2;
    LLVMStyle.AlignEscapedNewlines         = FormatStyle::ENAS_Right;
    LLVMStyle.AlignAfterOpenBracket        = FormatStyle::BAS_Align;
@@ -759,17 +728,9 @@ getLLVMStyle()
 }
 
 FormatStyle
-getGoogleStyle(FormatStyle::LanguageKind Language)
+getGoogleStyle()
 {
-   if(Language == FormatStyle::LK_TextProto)
-   {
-      FormatStyle GoogleStyle = getGoogleStyle(FormatStyle::LK_Proto);
-      GoogleStyle.Language    = FormatStyle::LK_TextProto;
-      return GoogleStyle;
-   }
-
    FormatStyle GoogleStyle = getLLVMStyle();
-   GoogleStyle.Language    = Language;
 
    GoogleStyle.AccessModifierOffset                = -1;
    GoogleStyle.AlignEscapedNewlines                = FormatStyle::ENAS_Left;
@@ -792,77 +753,19 @@ getGoogleStyle(FormatStyle::LanguageKind Language)
    GoogleStyle.PenaltyReturnTypeOnItsOwnLine        = 200;
    GoogleStyle.PenaltyBreakBeforeFirstCallParameter = 1;
 
-   if(Language == FormatStyle::LK_Java)
-   {
-      GoogleStyle.AlignAfterOpenBracket            = FormatStyle::BAS_DontAlign;
-      GoogleStyle.AlignOperands                    = false;
-      GoogleStyle.AlignTrailingComments            = false;
-      GoogleStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Empty;
-      GoogleStyle.AllowShortIfStatementsOnASingleLine = false;
-      GoogleStyle.AlwaysBreakBeforeMultilineStrings   = false;
-      GoogleStyle.BreakBeforeBinaryOperators   = FormatStyle::BOS_NonAssignment;
-      GoogleStyle.ColumnLimit                  = 100;
-      GoogleStyle.SpaceAfterCStyleCast         = true;
-      GoogleStyle.SpacesBeforeTrailingComments = 1;
-   }
-   else if(Language == FormatStyle::LK_JavaScript)
-   {
-      GoogleStyle.AlignAfterOpenBracket = FormatStyle::BAS_AlwaysBreak;
-      GoogleStyle.AlignOperands         = false;
-      GoogleStyle.AllowShortFunctionsOnASingleLine  = FormatStyle::SFS_Empty;
-      GoogleStyle.AlwaysBreakBeforeMultilineStrings = false;
-      GoogleStyle.BreakBeforeTernaryOperators       = false;
-      // taze:, triple slash directives (`/// <...`), @tag followed by { for a
-      // lot of JSDoc tags, and @see, which is commonly followed by overlong
-      // URLs.
-      GoogleStyle.CommentPragmas =
-          "(taze:|^/[ \t]*<|(@[A-Za-z_0-9-]+[ \\t]*{)|@see)";
-      GoogleStyle.MaxEmptyLinesToKeep       = 3;
-      GoogleStyle.NamespaceIndentation      = FormatStyle::NI_All;
-      GoogleStyle.SpacesInContainerLiterals = false;
-      GoogleStyle.JavaScriptQuotes          = FormatStyle::JSQS_Single;
-      GoogleStyle.JavaScriptWrapImports     = false;
-   }
-   else if(Language == FormatStyle::LK_Proto)
-   {
-      GoogleStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_None;
-      GoogleStyle.SpacesInContainerLiterals        = false;
-   }
-   else if(Language == FormatStyle::LK_ObjC)
-   {
-      GoogleStyle.ColumnLimit = 100;
-   }
-
    return GoogleStyle;
 }
 
 FormatStyle
-getChromiumStyle(FormatStyle::LanguageKind Language)
+getChromiumStyle()
 {
-   FormatStyle ChromiumStyle = getGoogleStyle(Language);
-   if(Language == FormatStyle::LK_Java)
-   {
-      ChromiumStyle.AllowShortIfStatementsOnASingleLine = true;
-      ChromiumStyle.BreakAfterJavaFieldAnnotations      = true;
-      ChromiumStyle.ContinuationIndentWidth             = 8;
-      ChromiumStyle.IndentWidth                         = 4;
-   }
-   else if(Language == FormatStyle::LK_JavaScript)
-   {
-      ChromiumStyle.AllowShortIfStatementsOnASingleLine = false;
-      ChromiumStyle.AllowShortLoopsOnASingleLine        = false;
-   }
-   else
-   {
-      ChromiumStyle.AllowAllParametersOfDeclarationOnNextLine = false;
-      ChromiumStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_Inline;
-      ChromiumStyle.AllowShortIfStatementsOnASingleLine = false;
-      ChromiumStyle.AllowShortLoopsOnASingleLine        = false;
-      ChromiumStyle.BinPackParameters                   = false;
-      ChromiumStyle.DerivePointerAlignment              = false;
-      if(Language == FormatStyle::LK_ObjC)
-         ChromiumStyle.ColumnLimit = 80;
-   }
+   FormatStyle ChromiumStyle                               = getGoogleStyle();
+   ChromiumStyle.AllowAllParametersOfDeclarationOnNextLine = false;
+   ChromiumStyle.AllowShortFunctionsOnASingleLine    = FormatStyle::SFS_Inline;
+   ChromiumStyle.AllowShortIfStatementsOnASingleLine = false;
+   ChromiumStyle.AllowShortLoopsOnASingleLine        = false;
+   ChromiumStyle.BinPackParameters                   = false;
+   ChromiumStyle.DerivePointerAlignment              = false;
    return ChromiumStyle;
 }
 
@@ -944,9 +847,7 @@ getNoStyle()
 }
 
 bool
-getPredefinedStyle(StringRef                 Name,
-                   FormatStyle::LanguageKind Language,
-                   FormatStyle *             Style)
+getPredefinedStyle(StringRef Name, FormatStyle * Style)
 {
    if(Name.equals_lower("llvm"))
    {
@@ -954,7 +855,7 @@ getPredefinedStyle(StringRef                 Name,
    }
    else if(Name.equals_lower("chromium"))
    {
-      *Style = getChromiumStyle(Language);
+      *Style = getChromiumStyle();
    }
    else if(Name.equals_lower("mozilla"))
    {
@@ -962,7 +863,7 @@ getPredefinedStyle(StringRef                 Name,
    }
    else if(Name.equals_lower("google"))
    {
-      *Style = getGoogleStyle(Language);
+      *Style = getGoogleStyle();
    }
    else if(Name.equals_lower("webkit"))
    {
@@ -981,7 +882,6 @@ getPredefinedStyle(StringRef                 Name,
       return false;
    }
 
-   Style->Language = Language;
    return true;
 }
 
@@ -989,8 +889,6 @@ std::error_code
 parseConfiguration(StringRef Text, FormatStyle * Style)
 {
    assert(Style);
-   FormatStyle::LanguageKind Language = Style->Language;
-   assert(Language != FormatStyle::LK_None);
    if(Text.trim().empty())
       return make_error_code(ParseError::Error);
 
@@ -1005,36 +903,14 @@ parseConfiguration(StringRef Text, FormatStyle * Style)
    if(Input.error())
       return Input.error();
 
-   for(unsigned i = 0; i < Styles.size(); ++i)
-   {
-      // Ensures that only the first configuration can skip the Language option.
-      if(Styles[i].Language == FormatStyle::LK_None && i != 0)
-         return make_error_code(ParseError::Error);
-      // Ensure that each language is configured at most once.
-      for(unsigned j = 0; j < i; ++j)
-      {
-         if(Styles[i].Language == Styles[j].Language)
-         {
-            DEBUG(llvm::dbgs()
-                  << "Duplicate languages in the config file on positions " << j
-                  << " and " << i << "\n");
-            return make_error_code(ParseError::Error);
-         }
-      }
-   }
    // Look for a suitable configuration starting from the end, so we can
    // find the configuration for the specific language first, and the default
    // configuration (which can only be at slot 0) after it.
    for(int i = Styles.size() - 1; i >= 0; --i)
    {
-      if(Styles[i].Language == Language
-         || Styles[i].Language == FormatStyle::LK_None)
-      {
-         *Style          = Styles[i];
-         Style->Language = Language;
-         return make_error_code(ParseError::Success);
-      }
+      *Style = Styles[i];
    }
+
    return make_error_code(ParseError::Unsuitable);
 }
 
@@ -1838,11 +1714,6 @@ sortIncludes(const FormatStyle &      Style,
    tooling::Replacements Replaces;
    if(!Style.SortIncludes)
       return Replaces;
-   if(Style.Language == FormatStyle::LanguageKind::LK_JavaScript
-      && isMpegTS(Code))
-      return Replaces;
-   if(Style.Language == FormatStyle::LanguageKind::LK_JavaScript)
-      return sortJavaScriptImports(Style, Code, Ranges, FileName);
    sortCppIncludes(Style, Code, Ranges, FileName, Replaces, Cursor);
    return Replaces;
 }
@@ -2064,9 +1935,6 @@ fixCppIncludeInsertions(StringRef                     Code,
                         const tooling::Replacements & Replaces,
                         const FormatStyle &           Style)
 {
-   if(!Style.isCpp())
-      return Replaces;
-
    tooling::Replacements     HeaderInsertions;
    std::set<llvm::StringRef> HeadersToDelete;
    tooling::Replacements     Result;
@@ -2254,30 +2122,19 @@ reformat(const FormatStyle &       Style,
    FormatStyle Expanded = expandPresets(Style);
    if(Expanded.DisableFormat)
       return tooling::Replacements();
-   if(Expanded.Language == FormatStyle::LK_JavaScript && isMpegTS(Code))
-      return tooling::Replacements();
 
    typedef std::function<tooling::Replacements(const Environment &)>
                                 AnalyzerPass;
    SmallVector<AnalyzerPass, 4> Passes;
 
-   if(Style.Language == FormatStyle::LK_Cpp)
-   {
-      if(Style.FixNamespaceComments)
-         Passes.emplace_back([&](const Environment & Env) {
-            return NamespaceEndCommentsFixer(Env, Expanded).process();
-         });
-
-      if(Style.SortUsingDeclarations)
-         Passes.emplace_back([&](const Environment & Env) {
-            return UsingDeclarationsSorter(Env, Expanded).process();
-         });
-   }
-
-   if(Style.Language == FormatStyle::LK_JavaScript
-      && Style.JavaScriptQuotes != FormatStyle::JSQS_Leave)
+   if(Style.FixNamespaceComments)
       Passes.emplace_back([&](const Environment & Env) {
-         return JavaScriptRequoter(Env, Expanded).process();
+         return NamespaceEndCommentsFixer(Env, Expanded).process();
+      });
+
+   if(Style.SortUsingDeclarations)
+      Passes.emplace_back([&](const Environment & Env) {
+         return UsingDeclarationsSorter(Env, Expanded).process();
       });
 
    Passes.emplace_back([&](const Environment & Env) {
@@ -2316,9 +2173,6 @@ cleanup(const FormatStyle &      Style,
         ArrayRef<tooling::Range> Ranges,
         StringRef                FileName)
 {
-   // cleanups only apply to C++ (they mostly concern ctor commas etc.)
-   if(Style.Language != FormatStyle::LK_Cpp)
-      return tooling::Replacements();
    std::unique_ptr<Environment> Env =
        Environment::CreateVirtualEnvironment(Code, FileName, Ranges);
    Cleaner Clean(*Env, Style);
@@ -2372,8 +2226,7 @@ getFormattingLangOpts(const FormatStyle & Style)
    LangOpts.CPlusPlus14      = Style.Standard == FormatStyle::LS_Cpp03 ? 0 : 1;
    LangOpts.CPlusPlus1z      = Style.Standard == FormatStyle::LS_Cpp03 ? 0 : 1;
    LangOpts.LineComment      = 1;
-   bool AlternativeOperators = Style.isCpp();
-   LangOpts.CXXOperatorNames = AlternativeOperators ? 1 : 0;
+   LangOpts.CXXOperatorNames = 1;
    LangOpts.Bool             = 1;
    LangOpts.ObjC1            = 1;
    LangOpts.ObjC2            = 1;
@@ -2393,23 +2246,6 @@ const char * StyleOptionHelpDescription =
     "parameters, e.g.:\n"
     "  -style=\"{BasedOnStyle: llvm, IndentWidth: 8}\"";
 
-static FormatStyle::LanguageKind
-getLanguageByFileName(StringRef FileName)
-{
-   if(FileName.endswith(".java"))
-      return FormatStyle::LK_Java;
-   if(FileName.endswith_lower(".js") || FileName.endswith_lower(".ts"))
-      return FormatStyle::LK_JavaScript;   // JavaScript or TypeScript.
-   if(FileName.endswith(".m") || FileName.endswith(".mm"))
-      return FormatStyle::LK_ObjC;
-   if(FileName.endswith_lower(".proto")
-      || FileName.endswith_lower(".protodevel"))
-      return FormatStyle::LK_Proto;
-   if(FileName.endswith_lower(".td"))
-      return FormatStyle::LK_TableGen;
-   return FormatStyle::LK_Cpp;
-}
-
 llvm::Expected<FormatStyle>
 getStyle(StringRef         StyleName,
          StringRef         FileName,
@@ -2422,17 +2258,9 @@ getStyle(StringRef         StyleName,
       FS = vfs::getRealFileSystem().get();
    }
    FormatStyle Style = getLLVMStyle();
-   Style.Language    = getLanguageByFileName(FileName);
-
-   // This is a very crude detection of whether a header contains ObjC code that
-   // should be improved over time and probably be done on tokens, not one the
-   // bare content of the file.
-   if(Style.Language == FormatStyle::LK_Cpp && FileName.endswith(".h")
-      && (Code.contains("\n- (") || Code.contains("\n+ (")))
-      Style.Language = FormatStyle::LK_ObjC;
 
    FormatStyle FallbackStyle = getNoStyle();
-   if(!getPredefinedStyle(FallbackStyleName, Style.Language, &FallbackStyle))
+   if(!getPredefinedStyle(FallbackStyleName, &FallbackStyle))
       return make_string_error("Invalid fallback style \"" + FallbackStyleName);
 
    if(StyleName.startswith("{"))
@@ -2445,7 +2273,7 @@ getStyle(StringRef         StyleName,
 
    if(!StyleName.equals_lower("file"))
    {
-      if(!getPredefinedStyle(StyleName, Style.Language, &Style))
+      if(!getPredefinedStyle(StyleName, &Style))
          return make_string_error("Invalid value for -style");
       return Style;
    }
@@ -2516,7 +2344,6 @@ getStyle(StringRef         StyleName,
    }
    if(!UnsuitableConfigFiles.empty())
       return make_string_error("Configuration file(s) do(es) not support "
-                               + getLanguageName(Style.Language) + ": "
                                + UnsuitableConfigFiles);
    return FallbackStyle;
 }

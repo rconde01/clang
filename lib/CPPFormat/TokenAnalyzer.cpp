@@ -95,8 +95,6 @@ TokenAnalyzer::TokenAnalyzer(const Environment & Env, const FormatStyle & Style)
                       << (Encoding == encoding::Encoding_UTF8 ? "UTF8"
                                                               : "unknown")
                       << "\n");
-   DEBUG(llvm::dbgs() << "Language: " << getLanguageName(Style.Language)
-                      << "\n");
 }
 
 tooling::Replacements

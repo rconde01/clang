@@ -62,11 +62,6 @@ FormatTokenLexer::lex()
    do
    {
       Tokens.push_back(getNextToken());
-      if(Style.Language == FormatStyle::LK_JavaScript)
-      {
-         tryParseJSRegexLiteral();
-         handleTemplateStrings();
-      }
       tryMergePreviousTokens();
       if(Tokens.back()->NewlinesBefore > 0 || Tokens.back()->IsMultiline)
          FirstInLineIndex = Tokens.size() - 1;
@@ -85,48 +80,6 @@ FormatTokenLexer::tryMergePreviousTokens()
       return;
    if(tryMergeNSStringLiteral())
       return;
-
-   if(Style.Language == FormatStyle::LK_JavaScript)
-   {
-      static const tok::TokenKind JSIdentity[] = {tok::equalequal, tok::equal};
-      static const tok::TokenKind JSNotIdentity[] = {tok::exclaimequal,
-                                                     tok::equal};
-      static const tok::TokenKind JSShiftEqual[]  = {
-          tok::greater, tok::greater, tok::greaterequal};
-      static const tok::TokenKind JSRightArrow[] = {tok::equal, tok::greater};
-      static const tok::TokenKind JSExponentiation[] = {tok::star, tok::star};
-      static const tok::TokenKind JSExponentiationEqual[] = {tok::star,
-                                                             tok::starequal};
-
-      // FIXME: Investigate what token type gives the correct operator priority.
-      if(tryMergeTokens(JSIdentity, TT_BinaryOperator))
-         return;
-      if(tryMergeTokens(JSNotIdentity, TT_BinaryOperator))
-         return;
-      if(tryMergeTokens(JSShiftEqual, TT_BinaryOperator))
-         return;
-      if(tryMergeTokens(JSRightArrow, TT_JsFatArrow))
-         return;
-      if(tryMergeTokens(JSExponentiation, TT_JsExponentiation))
-         return;
-      if(tryMergeTokens(JSExponentiationEqual, TT_JsExponentiationEqual))
-      {
-         Tokens.back()->Tok.setKind(tok::starequal);
-         return;
-      }
-   }
-
-   if(Style.Language == FormatStyle::LK_Java)
-   {
-      static const tok::TokenKind JavaRightLogicalShift[] = {
-          tok::greater, tok::greater, tok::greater};
-      static const tok::TokenKind JavaRightLogicalShiftAssign[] = {
-          tok::greater, tok::greater, tok::greaterequal};
-      if(tryMergeTokens(JavaRightLogicalShift, TT_BinaryOperator))
-         return;
-      if(tryMergeTokens(JavaRightLogicalShiftAssign, TT_BinaryOperator))
-         return;
-   }
 }
 
 bool
@@ -654,22 +607,6 @@ FormatTokenLexer::getNextToken()
       IdentifierInfo & Info = IdentTable.get(FormatTok->TokenText);
       FormatTok->Tok.setIdentifierInfo(&Info);
       FormatTok->Tok.setKind(Info.getTokenID());
-      if(Style.Language == FormatStyle::LK_Java
-         && FormatTok->isOneOf(tok::kw_struct,
-                               tok::kw_union,
-                               tok::kw_delete,
-                               tok::kw_operator))
-      {
-         FormatTok->Tok.setKind(tok::identifier);
-         FormatTok->Tok.setIdentifierInfo(nullptr);
-      }
-      else if(Style.Language == FormatStyle::LK_JavaScript
-              && FormatTok->isOneOf(
-                     tok::kw_struct, tok::kw_union, tok::kw_operator))
-      {
-         FormatTok->Tok.setKind(tok::identifier);
-         FormatTok->Tok.setIdentifierInfo(nullptr);
-      }
    }
    else if(FormatTok->Tok.is(tok::greatergreater))
    {
@@ -716,28 +653,25 @@ FormatTokenLexer::getNextToken()
       Column = FormatTok->LastLineColumnWidth;
    }
 
-   if(Style.isCpp())
+   if(!(Tokens.size() > 0 && Tokens.back()->Tok.getIdentifierInfo()
+        && Tokens.back()->Tok.getIdentifierInfo()->getPPKeywordID()
+               == tok::pp_define)
+      && std::find(ForEachMacros.begin(),
+                   ForEachMacros.end(),
+                   FormatTok->Tok.getIdentifierInfo())
+             != ForEachMacros.end())
    {
-      if(!(Tokens.size() > 0 && Tokens.back()->Tok.getIdentifierInfo()
-           && Tokens.back()->Tok.getIdentifierInfo()->getPPKeywordID()
-                  == tok::pp_define)
-         && std::find(ForEachMacros.begin(),
-                      ForEachMacros.end(),
-                      FormatTok->Tok.getIdentifierInfo())
-                != ForEachMacros.end())
+      FormatTok->Type = TT_ForEachMacro;
+   }
+   else if(FormatTok->is(tok::identifier))
+   {
+      if(MacroBlockBeginRegex.match(Text))
       {
-         FormatTok->Type = TT_ForEachMacro;
+         FormatTok->Type = TT_MacroBlockBegin;
       }
-      else if(FormatTok->is(tok::identifier))
+      else if(MacroBlockEndRegex.match(Text))
       {
-         if(MacroBlockBeginRegex.match(Text))
-         {
-            FormatTok->Type = TT_MacroBlockBegin;
-         }
-         else if(MacroBlockEndRegex.match(Text))
-         {
-            FormatTok->Type = TT_MacroBlockEnd;
-         }
+         FormatTok->Type = TT_MacroBlockEnd;
       }
    }
 
@@ -759,17 +693,6 @@ FormatTokenLexer::readRawToken(FormatToken & Tok)
          Tok.Tok.setKind(tok::string_literal);
          Tok.IsUnterminatedLiteral = true;
       }
-      else if(Style.Language == FormatStyle::LK_JavaScript
-              && Tok.TokenText == "''")
-      {
-         Tok.Tok.setKind(tok::string_literal);
-      }
-   }
-
-   if(Style.Language == FormatStyle::LK_JavaScript
-      && Tok.is(tok::char_constant))
-   {
-      Tok.Tok.setKind(tok::string_literal);
    }
 
    if(Tok.is(tok::comment)
