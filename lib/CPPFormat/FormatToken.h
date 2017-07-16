@@ -44,7 +44,6 @@ namespace format
    TYPE(CtorInitializerComma)         \
    TYPE(DesignatedInitializerLSquare) \
    TYPE(DesignatedInitializerPeriod)  \
-   TYPE(DictLiteral)                  \
    TYPE(ForEachMacro)                 \
    TYPE(FunctionAnnotationRParen)     \
    TYPE(FunctionDeclarationName)      \
@@ -55,40 +54,19 @@ namespace format
    TYPE(InheritanceComma)             \
    TYPE(InlineASMBrace)               \
    TYPE(InlineASMColon)               \
-   TYPE(JavaAnnotation)               \
-   TYPE(JsComputedPropertyName)       \
-   TYPE(JsExponentiation)             \
-   TYPE(JsExponentiationEqual)        \
-   TYPE(JsFatArrow)                   \
-   TYPE(JsNonNullAssertion)           \
-   TYPE(JsTypeColon)                  \
-   TYPE(JsTypeOperator)               \
-   TYPE(JsTypeOptionalQuestion)       \
    TYPE(LambdaArrow)                  \
    TYPE(LambdaLSquare)                \
-   TYPE(LeadingJavaAnnotation)        \
    TYPE(LineComment)                  \
    TYPE(MacroBlockBegin)              \
    TYPE(MacroBlockEnd)                \
-   TYPE(ObjCBlockLBrace)              \
-   TYPE(ObjCBlockLParen)              \
-   TYPE(ObjCDecl)                     \
-   TYPE(ObjCForIn)                    \
-   TYPE(ObjCMethodExpr)               \
-   TYPE(ObjCMethodSpecifier)          \
-   TYPE(ObjCProperty)                 \
-   TYPE(ObjCStringLiteral)            \
    TYPE(OverloadedOperator)           \
    TYPE(OverloadedOperatorLParen)     \
    TYPE(PointerOrReference)           \
    TYPE(PureVirtualSpecifier)         \
    TYPE(RangeBasedForLoopColon)       \
-   TYPE(RegexLiteral)                 \
-   TYPE(SelectorName)                 \
    TYPE(StartOfName)                  \
    TYPE(TemplateCloser)               \
    TYPE(TemplateOpener)               \
-   TYPE(TemplateString)               \
    TYPE(TrailingAnnotation)           \
    TYPE(TrailingReturnArrow)          \
    TYPE(TrailingUnaryOperator)        \
@@ -255,13 +233,6 @@ struct FormatToken
    /// \brief Penalty for inserting a line break before this token.
    unsigned SplitPenalty = 0;
 
-   /// \brief If this is the first ObjC selector name in an ObjC method
-   /// definition or call, this contains the length of the longest name.
-   ///
-   /// This being set to 0 means that the selectors should not be colon-aligned,
-   /// e.g. because several of them are block-type.
-   unsigned LongestObjCSelectorName = 0;
-
    /// \brief Stores the number of required fake parentheses and the
    /// corresponding operator precedence.
    ///
@@ -370,11 +341,6 @@ struct FormatToken
       return tok::isStringLiteral(Tok.getKind());
    }
 
-   bool isObjCAtKeyword(tok::ObjCKeywordKind Kind) const
-   {
-      return Tok.isObjCAtKeyword(Kind);
-   }
-
    bool isAccessSpecifier(bool ColonRequired = true) const
    {
       return isOneOf(tok::kw_public, tok::kw_protected, tok::kw_private)
@@ -384,28 +350,15 @@ struct FormatToken
    /// \brief Determine whether the token is a simple-type-specifier.
    bool isSimpleTypeSpecifier() const;
 
-   bool isObjCAccessSpecifier() const
-   {
-      return is(tok::at) && Next
-             && (Next->isObjCAtKeyword(tok::objc_public)
-                 || Next->isObjCAtKeyword(tok::objc_protected)
-                 || Next->isObjCAtKeyword(tok::objc_package)
-                 || Next->isObjCAtKeyword(tok::objc_private));
-   }
-
    /// \brief Returns whether \p Tok is ([{ or a template opening <.
    bool opensScope() const
    {
-      if(is(TT_TemplateString) && TokenText.endswith("${"))
-         return true;
       return isOneOf(
           tok::l_paren, tok::l_brace, tok::l_square, TT_TemplateOpener);
    }
    /// \brief Returns whether \p Tok is )]} or a template closing >.
    bool closesScope() const
    {
-      if(is(TT_TemplateString) && TokenText.startswith("}"))
-         return true;
       return isOneOf(
           tok::r_paren, tok::r_brace, tok::r_square, TT_TemplateCloser);
    }
@@ -525,20 +478,15 @@ struct FormatToken
    /// list that should be indented with a block indent.
    bool opensBlockOrBlockTypeList(const FormatStyle & Style) const
    {
-      if(is(TT_TemplateString) && opensScope())
-         return true;
-
       return is(TT_ArrayInitializerLSquare)
              || (is(tok::l_brace)
-                 && (BlockKind == BK_Block || is(TT_DictLiteral)
+                 && (BlockKind == BK_Block
                      || (!Style.Cpp11BracedListStyle && NestingLevel == 0)));
    }
 
    /// \brief Same as opensBlockOrBlockTypeList, but for the closing token.
    bool closesBlockOrBlockTypeList(const FormatStyle & Style) const
    {
-      if(is(TT_TemplateString) && closesScope())
-         return true;
       return MatchingParen && MatchingParen->opensBlockOrBlockTypeList(Style);
    }
 
@@ -714,78 +662,16 @@ struct AdditionalKeywords
       kw_NS_ENUM    = &IdentTable.get("NS_ENUM");
       kw_NS_OPTIONS = &IdentTable.get("NS_OPTIONS");
 
-      kw_as       = &IdentTable.get("as");
-      kw_async    = &IdentTable.get("async");
-      kw_await    = &IdentTable.get("await");
-      kw_declare  = &IdentTable.get("declare");
-      kw_finally  = &IdentTable.get("finally");
-      kw_from     = &IdentTable.get("from");
-      kw_function = &IdentTable.get("function");
-      kw_get      = &IdentTable.get("get");
-      kw_import   = &IdentTable.get("import");
-      kw_is       = &IdentTable.get("is");
-      kw_let      = &IdentTable.get("let");
-      kw_module   = &IdentTable.get("module");
-      kw_readonly = &IdentTable.get("readonly");
-      kw_set      = &IdentTable.get("set");
-      kw_type     = &IdentTable.get("type");
-      kw_var      = &IdentTable.get("var");
-      kw_yield    = &IdentTable.get("yield");
-
-      kw_abstract           = &IdentTable.get("abstract");
-      kw_assert             = &IdentTable.get("assert");
-      kw_extends            = &IdentTable.get("extends");
-      kw_implements         = &IdentTable.get("implements");
-      kw_instanceof         = &IdentTable.get("instanceof");
-      kw_interface          = &IdentTable.get("interface");
-      kw_native             = &IdentTable.get("native");
-      kw_package            = &IdentTable.get("package");
-      kw_synchronized       = &IdentTable.get("synchronized");
-      kw_throws             = &IdentTable.get("throws");
       kw___except           = &IdentTable.get("__except");
       kw___has_include      = &IdentTable.get("__has_include");
       kw___has_include_next = &IdentTable.get("__has_include_next");
 
       kw_mark = &IdentTable.get("mark");
 
-      kw_extend   = &IdentTable.get("extend");
-      kw_option   = &IdentTable.get("option");
-      kw_optional = &IdentTable.get("optional");
-      kw_repeated = &IdentTable.get("repeated");
-      kw_required = &IdentTable.get("required");
-      kw_returns  = &IdentTable.get("returns");
-
       kw_signals  = &IdentTable.get("signals");
       kw_qsignals = &IdentTable.get("Q_SIGNALS");
       kw_slots    = &IdentTable.get("slots");
       kw_qslots   = &IdentTable.get("Q_SLOTS");
-
-      // Keep this at the end of the constructor to make sure everything here is
-      // already initialized.
-      JsExtraKeywords = std::unordered_set<IdentifierInfo *>(
-          {kw_as,
-           kw_async,
-           kw_await,
-           kw_declare,
-           kw_finally,
-           kw_from,
-           kw_function,
-           kw_get,
-           kw_import,
-           kw_is,
-           kw_let,
-           kw_module,
-           kw_readonly,
-           kw_set,
-           kw_type,
-           kw_var,
-           kw_yield,
-           // Keywords from the Java section.
-           kw_abstract,
-           kw_extends,
-           kw_implements,
-           kw_instanceof,
-           kw_interface});
    }
 
    // Context sensitive keywords.
@@ -801,47 +687,8 @@ struct AdditionalKeywords
    IdentifierInfo * kw___has_include;
    IdentifierInfo * kw___has_include_next;
 
-   // JavaScript keywords.
-   IdentifierInfo * kw_as;
-   IdentifierInfo * kw_async;
-   IdentifierInfo * kw_await;
-   IdentifierInfo * kw_declare;
-   IdentifierInfo * kw_finally;
-   IdentifierInfo * kw_from;
-   IdentifierInfo * kw_function;
-   IdentifierInfo * kw_get;
-   IdentifierInfo * kw_import;
-   IdentifierInfo * kw_is;
-   IdentifierInfo * kw_let;
-   IdentifierInfo * kw_module;
-   IdentifierInfo * kw_readonly;
-   IdentifierInfo * kw_set;
-   IdentifierInfo * kw_type;
-   IdentifierInfo * kw_var;
-   IdentifierInfo * kw_yield;
-
-   // Java keywords.
-   IdentifierInfo * kw_abstract;
-   IdentifierInfo * kw_assert;
-   IdentifierInfo * kw_extends;
-   IdentifierInfo * kw_implements;
-   IdentifierInfo * kw_instanceof;
-   IdentifierInfo * kw_interface;
-   IdentifierInfo * kw_native;
-   IdentifierInfo * kw_package;
-   IdentifierInfo * kw_synchronized;
-   IdentifierInfo * kw_throws;
-
    // Pragma keywords.
    IdentifierInfo * kw_mark;
-
-   // Proto keywords.
-   IdentifierInfo * kw_extend;
-   IdentifierInfo * kw_option;
-   IdentifierInfo * kw_optional;
-   IdentifierInfo * kw_repeated;
-   IdentifierInfo * kw_required;
-   IdentifierInfo * kw_returns;
 
    // QT keywords.
    IdentifierInfo * kw_signals;
@@ -849,18 +696,7 @@ struct AdditionalKeywords
    IdentifierInfo * kw_slots;
    IdentifierInfo * kw_qslots;
 
-   /// \brief Returns \c true if \p Tok is a true JavaScript identifier, returns
-   /// \c false if it is a keyword or a pseudo keyword.
-   bool IsJavaScriptIdentifier(const FormatToken & Tok) const
-   {
-      return Tok.is(tok::identifier)
-             && JsExtraKeywords.find(Tok.Tok.getIdentifierInfo())
-                    == JsExtraKeywords.end();
-   }
-
 private:
-   /// \brief The JavaScript keywords beyond the C++ keyword set.
-   std::unordered_set<IdentifierInfo *> JsExtraKeywords;
 };
 
 }   // namespace format

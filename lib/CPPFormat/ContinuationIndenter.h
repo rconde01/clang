@@ -170,8 +170,6 @@ struct ParenState
      LastOperatorWrapped(true),
      ContainsLineBreak(false),
      ContainsUnwrappedBuilder(false),
-     AlignColons(true),
-     ObjCSelectorNameFound(false),
      HasMultipleNestedBlocks(false),
      NestedBlockInlined(false)
    {
@@ -200,9 +198,6 @@ struct ParenState
 
    /// \brief The column of a \c ? in a conditional expression;
    unsigned QuestionColumn = 0;
-
-   /// \brief The position of the colon in an ObjC method declaration/call.
-   unsigned ColonPos = 0;
 
    /// \brief The start of the most recent function in a builder-type call.
    unsigned StartOfFunctionCall = 0;
@@ -261,20 +256,6 @@ struct ParenState
    /// builder-type call on one line.
    bool ContainsUnwrappedBuilder : 1;
 
-   /// \brief \c true if the colons of the curren ObjC method expression should
-   /// be aligned.
-   ///
-   /// Not considered for memoization as it will always have the same value at
-   /// the same token.
-   bool AlignColons : 1;
-
-   /// \brief \c true if at least one selector name was found in the current
-   /// ObjC method expression.
-   ///
-   /// Not considered for memoization as it will always have the same value at
-   /// the same token.
-   bool ObjCSelectorNameFound : 1;
-
    /// \brief \c true if there are multiple nested blocks inside these parens.
    ///
    /// Not considered for memoization as it will always have the same value at
@@ -307,8 +288,6 @@ struct ParenState
          return NoLineBreak;
       if(LastOperatorWrapped != Other.LastOperatorWrapped)
          return LastOperatorWrapped;
-      if(ColonPos != Other.ColonPos)
-         return ColonPos < Other.ColonPos;
       if(StartOfFunctionCall != Other.StartOfFunctionCall)
          return StartOfFunctionCall < Other.StartOfFunctionCall;
       if(StartOfArraySubscripts != Other.StartOfArraySubscripts)

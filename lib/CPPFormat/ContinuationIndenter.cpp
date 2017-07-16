@@ -128,8 +128,7 @@ ContinuationIndenter::canBreak(const LineState & State)
    // The opening "{" of a braced list has to be on the same line as the first
    // element if it is nested in another braced init list or function call.
    if(!Current.MustBreakBefore && Previous.is(tok::l_brace)
-      && Previous.isNot(TT_DictLiteral) && Previous.BlockKind == BK_BracedInit
-      && Previous.Previous
+      && Previous.BlockKind == BK_BracedInit && Previous.Previous
       && Previous.Previous->isOneOf(tok::l_brace, tok::l_paren, tok::comma))
       return false;
    // This prevents breaks like:
@@ -194,9 +193,7 @@ ContinuationIndenter::mustBreak(const LineState & State)
       && State.Stack.back().BreakBeforeParameter && !Current.isTrailingComment()
       && !Current.isOneOf(tok::r_paren, tok::r_brace))
       return true;
-   if(((Previous.is(TT_DictLiteral) && Previous.is(tok::l_brace))
-       || (Previous.is(TT_ArrayInitializerLSquare)
-           && Previous.ParameterCount > 1))
+   if(((Previous.is(TT_ArrayInitializerLSquare) && Previous.ParameterCount > 1))
       && Style.ColumnLimit > 0
       && getLengthToMatchingParen(Previous) + State.Column - 1
              > getColumnLimit(State))
@@ -213,13 +210,6 @@ ContinuationIndenter::mustBreak(const LineState & State)
       && (Style.AllowShortFunctionsOnASingleLine != FormatStyle::SFS_All
           || Style.BreakConstructorInitializers != FormatStyle::BCIS_BeforeColon
           || Style.ColumnLimit != 0))
-      return true;
-
-   if(Current.is(TT_ObjCMethodExpr) && !Previous.is(TT_SelectorName)
-      && State.Line->startsWith(TT_ObjCMethodSpecifier))
-      return true;
-   if(Current.is(TT_SelectorName) && State.Stack.back().ObjCSelectorNameFound
-      && State.Stack.back().BreakBeforeParameter)
       return true;
 
    unsigned NewLineColumn = getNewLineColumn(State);
@@ -240,7 +230,7 @@ ContinuationIndenter::mustBreak(const LineState & State)
    if(Style.AlwaysBreakBeforeMultilineStrings
       && (NewLineColumn == State.FirstIndent + Style.ContinuationIndentWidth
           || Previous.is(tok::comma) || Current.NestingLevel < 2)
-      && !Previous.isOneOf(tok::kw_return, tok::lessless, tok::at)
+      && !Previous.isOneOf(tok::kw_return, tok::lessless)
       && !Previous.isOneOf(TT_InlineASMColon, TT_ConditionalExpr)
       && nextIsMultilineString(State))
       return true;
@@ -291,9 +281,6 @@ ContinuationIndenter::mustBreak(const LineState & State)
       if(Previous.ClosesTemplateDeclaration)
          return true;
       if(Previous.is(TT_FunctionAnnotationRParen))
-         return true;
-      if(Previous.is(TT_LeadingJavaAnnotation) && Current.isNot(tok::l_paren)
-         && Current.isNot(TT_LeadingJavaAnnotation))
          return true;
    }
 
@@ -400,21 +387,6 @@ ContinuationIndenter::addTokenOnCurrentLine(LineState & State,
    if(Style.BreakBeforeInheritanceComma && Current.is(TT_InheritanceColon))
       State.Stack.back().NoLineBreak = true;
 
-   if(Current.is(TT_SelectorName) && !State.Stack.back().ObjCSelectorNameFound)
-   {
-      unsigned MinIndent =
-          std::max(State.FirstIndent + Style.ContinuationIndentWidth,
-                   State.Stack.back().Indent);
-      unsigned FirstColonPos = State.Column + Spaces + Current.ColumnWidth;
-      if(Current.LongestObjCSelectorName == 0)
-         State.Stack.back().AlignColons = false;
-      else if(MinIndent + Current.LongestObjCSelectorName > FirstColonPos)
-         State.Stack.back().ColonPos =
-             MinIndent + Current.LongestObjCSelectorName;
-      else
-         State.Stack.back().ColonPos = FirstColonPos;
-   }
-
    // In "AlwaysBreak" mode, enforce wrapping directly after the parenthesis by
    // disallowing any further line breaks if there is no line break after the
    // opening parenthesis. Don't break if it doesn't conserve columns.
@@ -435,11 +407,9 @@ ContinuationIndenter::addTokenOnCurrentLine(LineState & State,
       Current.FakeLParens.size() > 0
       && Current.FakeLParens.back() > prec::Unknown)
       State.Stack.back().NoLineBreak = true;
-   if(Previous.is(TT_TemplateString) && Previous.opensScope())
-      State.Stack.back().NoLineBreak = true;
 
    if(Style.AlignAfterOpenBracket != FormatStyle::BAS_DontAlign
-      && Previous.opensScope() && Previous.isNot(TT_ObjCMethodExpr)
+      && Previous.opensScope()
       && (Current.isNot(TT_LineComment) || Previous.BlockKind == BK_BracedInit))
       State.Stack.back().Indent = State.Column + Spaces;
    if(State.Stack.back().AvoidBinPacking && startsNextParameter(Current, Style))
@@ -498,8 +468,8 @@ ContinuationIndenter::addTokenOnCurrentLine(LineState & State,
       State.Stack.back().NestedBlockIndent = State.Column;
    }
    else if(!Current.isOneOf(tok::comment, tok::caret)
-           && ((Previous.is(tok::comma) && !Previous.is(TT_OverloadedOperator))
-               || (Previous.is(tok::colon) && Previous.is(TT_ObjCMethodExpr))))
+           && ((Previous.is(tok::comma)
+                && !Previous.is(TT_OverloadedOperator))))
    {
       State.Stack.back().LastSpace = State.Column;
    }
@@ -578,16 +548,7 @@ ContinuationIndenter::addTokenOnNewLine(LineState & State, bool DryRun)
 
    State.Column = getNewLineColumn(State);
 
-   // Indent nested blocks relative to this column, unless in a very specific
-   // JavaScript special case where:
-   //
-   //   var loooooong_name =
-   //       function() {
-   //     // code
-   //   }
-   //
-   // is common and should be formatted like a free-standing function. The same
-   // goes for wrapping before the lambda return type arrow.
+   // Indent nested blocks relative to this column
    if(!Current.is(TT_LambdaArrow))
       State.Stack.back().NestedBlockIndent = State.Column;
 
@@ -596,56 +557,12 @@ ContinuationIndenter::addTokenOnNewLine(LineState & State, bool DryRun)
       if(State.Stack.back().CallContinuation == 0)
          State.Stack.back().CallContinuation = State.Column;
    }
-   else if(NextNonComment->is(TT_SelectorName))
-   {
-      if(!State.Stack.back().ObjCSelectorNameFound)
-      {
-         if(NextNonComment->LongestObjCSelectorName == 0)
-         {
-            State.Stack.back().AlignColons = false;
-         }
-         else
-         {
-            State.Stack.back().ColonPos =
-                (Style.IndentWrappedFunctionNames
-                     ? std::max(State.Stack.back().Indent,
-                                State.FirstIndent
-                                    + Style.ContinuationIndentWidth)
-                     : State.Stack.back().Indent)
-                + NextNonComment->LongestObjCSelectorName;
-         }
-      }
-      else if(State.Stack.back().AlignColons
-              && State.Stack.back().ColonPos <= NextNonComment->ColumnWidth)
-      {
-         State.Stack.back().ColonPos =
-             State.Column + NextNonComment->ColumnWidth;
-      }
-   }
-   else if(PreviousNonComment && PreviousNonComment->is(tok::colon)
-           && PreviousNonComment->isOneOf(TT_ObjCMethodExpr, TT_DictLiteral))
-   {
-      // FIXME: This is hacky, find a better way. The problem is that in an ObjC
-      // method expression, the block should be aligned to the line starting it,
-      // e.g.:
-      //   [aaaaaaaaaaaaaaa aaaaaaaaa: \\ break for some reason
-      //                        ^(int *i) {
-      //                            // ...
-      //                        }];
-      // Thus, we set LastSpace of the next higher NestingLevel, to which we
-      // move when we consume all of the "}"'s FakeRParens at the "{".
-      if(State.Stack.size() > 1)
-         State.Stack[State.Stack.size() - 2].LastSpace =
-             std::max(State.Stack.back().LastSpace, State.Stack.back().Indent)
-             + Style.ContinuationIndentWidth;
-   }
 
    if((PreviousNonComment && PreviousNonComment->isOneOf(tok::comma, tok::semi)
        && !State.Stack.back().AvoidBinPacking)
       || Previous.is(TT_BinaryOperator))
       State.Stack.back().BreakBeforeParameter = false;
-   if(Previous.isOneOf(TT_TemplateCloser, TT_JavaAnnotation)
-      && Current.NestingLevel == 0)
+   if(Previous.is(TT_TemplateCloser) && Current.NestingLevel == 0)
       State.Stack.back().BreakBeforeParameter = false;
    if(NextNonComment->is(tok::question)
       || (PreviousNonComment && PreviousNonComment->is(tok::question)))
@@ -684,18 +601,15 @@ ContinuationIndenter::addTokenOnNewLine(LineState & State, bool DryRun)
       && (PreviousNonComment->isNot(TT_TemplateCloser)
           || Current.NestingLevel != 0)
       && !PreviousNonComment->isOneOf(TT_BinaryOperator,
-                                      TT_FunctionAnnotationRParen,
-                                      TT_JavaAnnotation,
-                                      TT_LeadingJavaAnnotation)
+                                      TT_FunctionAnnotationRParen)
       && Current.isNot(TT_BinaryOperator) && !PreviousNonComment->opensScope())
       State.Stack.back().BreakBeforeParameter = true;
 
    // If we break after { or the [ of an array initializer, we should also break
    // before the corresponding } or ].
    if(PreviousNonComment
-      && (PreviousNonComment->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare)
-          || (PreviousNonComment->is(TT_TemplateString)
-              && PreviousNonComment->opensScope())))
+      && (PreviousNonComment->isOneOf(tok::l_brace,
+                                      TT_ArrayInitializerLSquare)))
       State.Stack.back().BreakBeforeClosingBrace = true;
 
    if(State.Stack.back().AvoidBinPacking)
@@ -705,8 +619,7 @@ ContinuationIndenter::addTokenOnNewLine(LineState & State, bool DryRun)
       // dict/object literal.
       if(!Previous.isOneOf(tok::l_paren, tok::l_brace, TT_BinaryOperator)
          || (!Style.AllowAllParametersOfDeclarationOnNextLine
-             && State.Line->MustBeDeclaration)
-         || Previous.is(TT_DictLiteral))
+             && State.Line->MustBeDeclaration))
          State.Stack.back().BreakBeforeParameter = true;
    }
 
@@ -755,14 +668,6 @@ ContinuationIndenter::getNewLineColumn(const LineState & State)
    if(Current.is(tok::r_paren) && State.Stack.size() > 1
       && (!Current.Next || Current.Next->isOneOf(tok::semi, tok::l_brace)))
       return State.Stack[State.Stack.size() - 2].LastSpace;
-   if(NextNonComment->is(TT_TemplateString) && NextNonComment->closesScope())
-      return State.Stack[State.Stack.size() - 2].LastSpace;
-   if(Current.is(tok::identifier) && Current.Next
-      && Current.Next->is(TT_DictLiteral))
-      return State.Stack.back().Indent;
-   if(NextNonComment->is(TT_ObjCStringLiteral)
-      && State.StartOfStringLiteral != 0)
-      return State.StartOfStringLiteral - 1;
    if(NextNonComment->isStringLiteral() && State.StartOfStringLiteral != 0)
       return State.StartOfStringLiteral;
    if(NextNonComment->is(tok::lessless)
@@ -784,35 +689,12 @@ ContinuationIndenter::getNewLineColumn(const LineState & State)
    if((PreviousNonComment
        && (PreviousNonComment->ClosesTemplateDeclaration
            || PreviousNonComment->isOneOf(TT_AttributeParen,
-                                          TT_FunctionAnnotationRParen,
-                                          TT_JavaAnnotation,
-                                          TT_LeadingJavaAnnotation)))
+                                          TT_FunctionAnnotationRParen)))
       || (!Style.IndentWrappedFunctionNames
           && NextNonComment->isOneOf(tok::kw_operator,
                                      TT_FunctionDeclarationName)))
       return std::max(State.Stack.back().LastSpace, State.Stack.back().Indent);
-   if(NextNonComment->is(TT_SelectorName))
-   {
-      if(!State.Stack.back().ObjCSelectorNameFound)
-      {
-         if(NextNonComment->LongestObjCSelectorName == 0)
-            return State.Stack.back().Indent;
-         return (Style.IndentWrappedFunctionNames
-                     ? std::max(State.Stack.back().Indent,
-                                State.FirstIndent
-                                    + Style.ContinuationIndentWidth)
-                     : State.Stack.back().Indent)
-                + NextNonComment->LongestObjCSelectorName
-                - NextNonComment->ColumnWidth;
-      }
-      if(!State.Stack.back().AlignColons)
-         return State.Stack.back().Indent;
-      if(State.Stack.back().ColonPos > NextNonComment->ColumnWidth)
-         return State.Stack.back().ColonPos - NextNonComment->ColumnWidth;
-      return State.Stack.back().Indent;
-   }
-   if(NextNonComment->is(tok::colon) && NextNonComment->is(TT_ObjCMethodExpr))
-      return State.Stack.back().ColonPos;
+
    if(NextNonComment->is(TT_ArraySubscriptLSquare))
    {
       if(State.Stack.back().StartOfArraySubscripts != 0)
@@ -820,17 +702,8 @@ ContinuationIndenter::getNewLineColumn(const LineState & State)
       return ContinuationIndent;
    }
 
-   // This ensure that we correctly format ObjC methods calls without inputs,
-   // i.e. where the last element isn't selector like: [callee method];
-   if(NextNonComment->is(tok::identifier) && NextNonComment->FakeRParens == 0
-      && NextNonComment->Next && NextNonComment->Next->is(TT_ObjCMethodExpr))
-      return State.Stack.back().Indent;
-
    if(NextNonComment->isOneOf(TT_StartOfName, TT_PointerOrReference)
-      || Previous.isOneOf(tok::coloncolon, tok::equal, TT_JsTypeColon))
-      return ContinuationIndent;
-   if(PreviousNonComment && PreviousNonComment->is(tok::colon)
-      && PreviousNonComment->isOneOf(TT_ObjCMethodExpr, TT_DictLiteral))
+      || Previous.isOneOf(tok::coloncolon, tok::equal))
       return ContinuationIndent;
    if(NextNonComment->is(TT_CtorInitializerComma))
       return State.Stack.back().Indent;
@@ -895,15 +768,6 @@ ContinuationIndenter::moveStateToNextToken(LineState & State,
    if(Current.isMemberAccess())
       State.Stack.back().StartOfFunctionCall =
           !Current.NextOperator ? 0 : State.Column;
-   if(Current.is(TT_SelectorName))
-   {
-      State.Stack.back().ObjCSelectorNameFound = true;
-      if(Style.IndentWrappedFunctionNames)
-      {
-         State.Stack.back().Indent =
-             State.FirstIndent + Style.ContinuationIndentWidth;
-      }
-   }
    if(Current.is(TT_CtorInitializerColon)
       && Style.BreakConstructorInitializers != FormatStyle::BCIS_AfterColon)
    {
@@ -951,7 +815,7 @@ ContinuationIndenter::moveStateToNextToken(LineState & State,
    //   }, a, b, c);
    if(Current.isNot(tok::comment) && Previous
       && Previous->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare)
-      && !Previous->is(TT_DictLiteral) && State.Stack.size() > 1)
+      && State.Stack.size() > 1)
    {
       if(State.Stack[State.Stack.size() - 2].NestedBlockInlined && Newline)
          for(unsigned i = 0, e = State.Stack.size() - 1; i != e; ++i)
@@ -960,8 +824,7 @@ ContinuationIndenter::moveStateToNextToken(LineState & State,
    }
    if(Previous
       && (Previous->isOneOf(tok::l_paren, tok::comma, tok::colon)
-          || Previous->isOneOf(TT_BinaryOperator, TT_ConditionalExpr))
-      && !Previous->isOneOf(TT_DictLiteral, TT_ObjCMethodExpr))
+          || Previous->isOneOf(TT_BinaryOperator, TT_ConditionalExpr)))
    {
       State.Stack.back().NestedBlockInlined =
           !Newline
@@ -970,19 +833,12 @@ ContinuationIndenter::moveStateToNextToken(LineState & State,
 
    moveStatePastFakeLParens(State, Newline);
    moveStatePastScopeCloser(State);
-   if(Current.is(TT_TemplateString) && Current.opensScope())
-      State.Stack.back().LastSpace =
-          (Current.IsMultiline ? Current.LastLineColumnWidth
-                               : State.Column + Current.ColumnWidth)
-          - strlen("${");
    bool CanBreakProtrudingToken = !State.Stack.back().NoLineBreak
                                   && !State.Stack.back().NoLineBreakInOperand;
    moveStatePastScopeOpener(State, Newline);
    moveStatePastFakeRParens(State);
 
-   if(Current.is(TT_ObjCStringLiteral) && State.StartOfStringLiteral == 0)
-      State.StartOfStringLiteral = State.Column + 1;
-   else if(Current.isStringLiteral() && State.StartOfStringLiteral == 0)
+   if(Current.isStringLiteral() && State.StartOfStringLiteral == 0)
       State.StartOfStringLiteral = State.Column;
    else if(!Current.isOneOf(tok::comment, tok::identifier, tok::hash)
            && !Current.isStringLiteral())
@@ -1027,8 +883,8 @@ ContinuationIndenter::moveStatePastFakeLParens(LineState & State, bool Newline)
         && (Previous->opensScope()
             || Previous->isOneOf(tok::semi, tok::kw_return)
             || (Previous->getPrecedence() == prec::Assignment
-                && Style.AlignOperands)
-            || Previous->is(TT_ObjCMethodExpr)));
+                && Style.AlignOperands)));
+
    for(SmallVectorImpl<prec::Level>::const_reverse_iterator
            I = Current.FakeLParens.rbegin(),
            E = Current.FakeLParens.rend();
@@ -1139,7 +995,7 @@ ContinuationIndenter::moveStatePastScopeOpener(LineState & State, bool Newline)
                          && Current.MatchingParen->Previous
                          && Current.MatchingParen->Previous->is(tok::comma);
       AvoidBinPacking =
-          EndsInComma || Current.is(TT_DictLiteral) || !Style.BinPackArguments
+          EndsInComma || !Style.BinPackArguments
           || (NextNoComment
               && NextNoComment->isOneOf(TT_DesignatedInitializerPeriod,
                                         TT_DesignatedInitializerLSquare));
@@ -1164,19 +1020,6 @@ ContinuationIndenter::moveStatePastScopeOpener(LineState & State, bool Newline)
          LastSpace = std::max(LastSpace, State.Stack.back().Indent);
       }
 
-      // JavaScript template strings are special as we always want to indent
-      // nested expressions relative to the ${}. Otherwise, this can create
-      // quite a mess.
-      if(Current.is(TT_TemplateString))
-      {
-         unsigned Column = Current.IsMultiline
-                               ? Current.LastLineColumnWidth
-                               : State.Column + Current.ColumnWidth;
-         NewIndent         = Column;
-         LastSpace         = Column;
-         NestedBlockIndent = Column;
-      }
-
       AvoidBinPacking =
           (State.Line->MustBeDeclaration && !Style.BinPackParameters)
           || (!State.Line->MustBeDeclaration && !Style.BinPackArguments)
@@ -1184,45 +1027,16 @@ ContinuationIndenter::moveStatePastScopeOpener(LineState & State, bool Newline)
               && (Current.PackingKind == PPK_OnePerLine
                   || (!BinPackInconclusiveFunctions
                       && Current.PackingKind == PPK_Inconclusive)));
-
-      if(Current.is(TT_ObjCMethodExpr) && Current.MatchingParen)
-      {
-         if(Style.ColumnLimit)
-         {
-            // If this '[' opens an ObjC call, determine whether all parameters
-            // fit into one line and put one per line if they don't.
-            if(getLengthToMatchingParen(Current) + State.Column
-               > getColumnLimit(State))
-               BreakBeforeParameter = true;
-         }
-         else
-         {
-            // For ColumnLimit = 0, we have to figure out whether there is or
-            // has to be a line break within this call.
-            for(const FormatToken * Tok = &Current;
-                Tok && Tok != Current.MatchingParen;
-                Tok = Tok->Next)
-            {
-               if(Tok->MustBreakBefore
-                  || (Tok->CanBreakBefore && Tok->NewlinesBefore > 0))
-               {
-                  BreakBeforeParameter = true;
-                  break;
-               }
-            }
-         }
-      }
    }
    // Generally inherit NoLineBreak from the current scope to nested scope.
    // However, don't do this for non-empty nested blocks, dict literals and
    // array literals as these follow different indentation rules.
-   bool NoLineBreak =
-       Current.Children.empty()
-       && !Current.isOneOf(TT_DictLiteral, TT_ArrayInitializerLSquare)
-       && (State.Stack.back().NoLineBreak
-           || State.Stack.back().NoLineBreakInOperand
-           || (Current.is(TT_TemplateOpener)
-               && State.Stack.back().ContainsUnwrappedBuilder));
+   bool NoLineBreak = Current.Children.empty()
+                      && !Current.is(TT_ArrayInitializerLSquare)
+                      && (State.Stack.back().NoLineBreak
+                          || State.Stack.back().NoLineBreakInOperand
+                          || (Current.is(TT_TemplateOpener)
+                              && State.Stack.back().ContainsUnwrappedBuilder));
    State.Stack.push_back(
        ParenState(NewIndent, LastSpace, AvoidBinPacking, NoLineBreak));
    State.Stack.back().NestedBlockIndent       = NestedBlockIndent;
@@ -1240,7 +1054,7 @@ ContinuationIndenter::moveStatePastScopeCloser(LineState & State)
    // If we encounter a closing ), ], } or >, we can remove a level from our
    // stacks.
    if(State.Stack.size() > 1
-      && (Current.isOneOf(tok::r_paren, tok::r_square, TT_TemplateString)
+      && (Current.isOneOf(tok::r_paren, tok::r_square)
           || (Current.is(tok::r_brace) && State.NextToken != State.Line->First)
           || State.NextToken->is(TT_TemplateCloser)))
       State.Stack.pop_back();
@@ -1258,11 +1072,8 @@ void
 ContinuationIndenter::moveStateToNewBlock(LineState & State)
 {
    unsigned NestedBlockIndent = State.Stack.back().NestedBlockIndent;
-   // ObjC block sometimes follow special indentation rules.
-   unsigned NewIndent =
-       NestedBlockIndent
-       + (State.NextToken->is(TT_ObjCBlockLBrace) ? Style.ObjCBlockIndentWidth
-                                                  : Style.IndentWidth);
+
+   unsigned NewIndent = NestedBlockIndent + Style.IndentWidth;
    State.Stack.push_back(ParenState(NewIndent,
                                     State.Stack.back().LastSpace,
                                     /*AvoidBinPacking=*/true,

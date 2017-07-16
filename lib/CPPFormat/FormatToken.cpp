@@ -97,7 +97,7 @@ CommaSeparatedList::formatAfterToken(LineState &            State,
    const FormatToken * LBrace =
        State.NextToken->Previous->getPreviousNonComment();
    if(!LBrace || !LBrace->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare)
-      || LBrace->BlockKind == BK_Block || LBrace->Type == TT_DictLiteral
+      || LBrace->BlockKind == BK_Block
       || LBrace->Next->Type == TT_DesignatedInitializerPeriod)
       return 0;
 

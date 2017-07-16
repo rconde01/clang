@@ -111,7 +111,7 @@ private:
    /// characters to the left from their level.
    int getIndentOffset(const FormatToken & RootToken)
    {
-      if(RootToken.isAccessSpecifier(false) || RootToken.isObjCAccessSpecifier()
+      if(RootToken.isAccessSpecifier(false)
          || (RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals)
              && RootToken.Next && RootToken.Next->is(tok::colon)))
          return Style.AccessModifierOffset;
@@ -262,11 +262,7 @@ private:
 
          if(Tok && Tok->is(tok::kw_typedef))
             Tok = Tok->getNextNonComment();
-         if(Tok
-            && Tok->isOneOf(tok::kw_class,
-                            tok::kw_struct,
-                            tok::kw_union,
-                            Keywords.kw_interface))
+         if(Tok && Tok->isOneOf(tok::kw_class, tok::kw_struct, tok::kw_union))
             return !Style.BraceWrapping.SplitEmptyRecord && EmptyBlock
                        ? tryMergeSimpleBlock(I, E, Limit)
                        : 0;
@@ -468,12 +464,6 @@ private:
    {
       AnnotatedLine & Line = **I;
 
-      // Don't merge ObjC @ keywords and methods.
-      // FIXME: If an option to allow short exception handling clauses on a
-      // single line is added, change this to not return for @try and friends.
-      if(Line.First->isOneOf(tok::at, tok::minus, tok::plus))
-         return 0;
-
       // Check that the current line allows merging. This depends on whether we
       // are in a control flow statements as well as several style flags.
       if(Line.First->isOneOf(tok::kw_else, tok::kw_case)
@@ -528,10 +518,7 @@ private:
          FormatToken * RecordTok =
              Line.First->is(tok::kw_typedef) ? Line.First->Next : Line.First;
          if(RecordTok
-            && RecordTok->isOneOf(tok::kw_class,
-                                  tok::kw_union,
-                                  tok::kw_struct,
-                                  Keywords.kw_interface))
+            && RecordTok->isOneOf(tok::kw_class, tok::kw_union, tok::kw_struct))
             return 0;
 
          // Check that we still have three lines and they fit into the limit.
@@ -850,11 +837,6 @@ public:
    {
       LineState State = Indenter->getInitialState(FirstIndent, &Line, DryRun);
 
-      // If the ObjC method declaration does not fit on a line, we should format
-      // it with one arg per line.
-      if(State.Line->Type == LT_ObjCMethodDecl)
-         State.Stack.back().BreakBeforeParameter = true;
-
       // Find best solution in solution space.
       return analyzeSolutionSpace(State, DryRun);
    }
@@ -1097,8 +1079,7 @@ UnwrappedLineFormatter::format(const SmallVectorImpl<AnnotatedLine *> & Lines,
          unsigned ColumnLimit = getColumnLimit(TheLine.InPPDirective, NextLine);
          bool     FitsIntoOneLine =
              TheLine.Last->TotalLength + Indent <= ColumnLimit
-             || (TheLine.Type == LT_ImportStatement
-                 && !Style.JavaScriptWrapImports);
+             || TheLine.Type == LT_ImportStatement;
 
          if(Style.ColumnLimit == 0)
             NoColumnLimitLineFormatter(Indenter, Whitespaces, Style, this)

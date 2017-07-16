@@ -451,10 +451,6 @@ UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody)
          if(LBraceStack.back()->BlockKind == BK_Unknown)
          {
             bool ProbablyBracedList = false;
-            // Using OriginalColumn to distinguish between ObjC methods and
-            // binary operators is a bit hacky.
-            bool NextIsObjCMethod = NextTok->isOneOf(tok::plus, tok::minus)
-                                    && NextTok->OriginalColumn == 0;
 
             // If there is a comma, semicolon or right paren after the
             // closing brace, we assume this is a braced initializer list.
@@ -478,7 +474,7 @@ UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody)
                     && !PrevTok->isOneOf(tok::semi, tok::r_brace, tok::l_brace))
                 || (NextTok->is(tok::semi)
                     && (!ExpectClassBody || LBraceStack.size() != 1))
-                || (NextTok->isBinaryOperator() && !NextIsObjCMethod);
+                || NextTok->isBinaryOperator();
 
             if(ProbablyBracedList)
             {
@@ -493,7 +489,6 @@ UnwrappedLineParser::calculateBraceTypes(bool ExpectClassBody)
          }
          LBraceStack.pop_back();
          break;
-      case tok::at:
       case tok::semi:
       case tok::kw_if:
       case tok::kw_while:
@@ -591,25 +586,6 @@ isGoogScope(const UnwrappedLine & Line)
       return false;
    ++I;
    if(I->Tok->TokenText != "scope")
-      return false;
-   ++I;
-   return I->Tok->is(tok::l_paren);
-}
-
-static bool
-isIIFE(const UnwrappedLine & Line, const AdditionalKeywords & Keywords)
-{
-   // Look for the start of an immediately invoked anonymous function.
-   // https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
-   // This is commonly done in JavaScript to create a new, anonymous scope.
-   // Example: (function() { ... })()
-   if(Line.Tokens.size() < 3)
-      return false;
-   auto I = Line.Tokens.begin();
-   if(I->Tok->isNot(tok::l_paren))
-      return false;
-   ++I;
-   if(I->Tok->isNot(Keywords.kw_function))
       return false;
    ++I;
    return I->Tok->is(tok::l_paren);
@@ -849,126 +825,6 @@ tokenCanStartNewLine(const clang::Token & Tok)
           Tok.isNot(tok::kw_noexcept);
 }
 
-static bool
-mustBeJSIdent(const AdditionalKeywords & Keywords,
-              const FormatToken *        FormatTok)
-{
-   // FIXME: This returns true for C/C++ keywords like 'struct'.
-   return FormatTok->is(tok::identifier)
-          && (FormatTok->Tok.getIdentifierInfo() == nullptr
-              || !FormatTok->isOneOf(Keywords.kw_in,
-                                     Keywords.kw_of,
-                                     Keywords.kw_as,
-                                     Keywords.kw_async,
-                                     Keywords.kw_await,
-                                     Keywords.kw_yield,
-                                     Keywords.kw_finally,
-                                     Keywords.kw_function,
-                                     Keywords.kw_import,
-                                     Keywords.kw_is,
-                                     Keywords.kw_let,
-                                     Keywords.kw_var,
-                                     tok::kw_const,
-                                     Keywords.kw_abstract,
-                                     Keywords.kw_extends,
-                                     Keywords.kw_implements,
-                                     Keywords.kw_instanceof,
-                                     Keywords.kw_interface,
-                                     Keywords.kw_throws));
-}
-
-static bool
-mustBeJSIdentOrValue(const AdditionalKeywords & Keywords,
-                     const FormatToken *        FormatTok)
-{
-   return FormatTok->Tok.isLiteral()
-          || FormatTok->isOneOf(tok::kw_true, tok::kw_false)
-          || mustBeJSIdent(Keywords, FormatTok);
-}
-
-// isJSDeclOrStmt returns true if |FormatTok| starts a declaration or statement
-// when encountered after a value (see mustBeJSIdentOrValue).
-static bool
-isJSDeclOrStmt(const AdditionalKeywords & Keywords,
-               const FormatToken *        FormatTok)
-{
-   return FormatTok->isOneOf(tok::kw_return,
-                             Keywords.kw_yield,
-                             // conditionals
-                             tok::kw_if,
-                             tok::kw_else,
-                             // loops
-                             tok::kw_for,
-                             tok::kw_while,
-                             tok::kw_do,
-                             tok::kw_continue,
-                             tok::kw_break,
-                             // switch/case
-                             tok::kw_switch,
-                             tok::kw_case,
-                             // exceptions
-                             tok::kw_throw,
-                             tok::kw_try,
-                             tok::kw_catch,
-                             Keywords.kw_finally,
-                             // declaration
-                             tok::kw_const,
-                             tok::kw_class,
-                             Keywords.kw_var,
-                             Keywords.kw_let,
-                             Keywords.kw_async,
-                             Keywords.kw_function,
-                             // import/export
-                             Keywords.kw_import,
-                             tok::kw_export);
-}
-
-// readTokenWithJavaScriptASI reads the next token and terminates the current
-// line if JavaScript Automatic Semicolon Insertion must
-// happen between the current token and the next token.
-//
-// This method is conservative - it cannot cover all edge cases of JavaScript,
-// but only aims to correctly handle certain well known cases. It *must not*
-// return true in speculative cases.
-void
-UnwrappedLineParser::readTokenWithJavaScriptASI()
-{
-   FormatToken * Previous = FormatTok;
-   readToken();
-   FormatToken * Next = FormatTok;
-
-   bool IsOnSameLine =
-       CommentsBeforeNextToken.empty()
-           ? Next->NewlinesBefore == 0
-           : CommentsBeforeNextToken.front()->NewlinesBefore == 0;
-   if(IsOnSameLine)
-      return;
-
-   bool PreviousMustBeValue = mustBeJSIdentOrValue(Keywords, Previous);
-   bool PreviousStartsTemplateExpr =
-       Previous->is(TT_TemplateString) && Previous->TokenText.endswith("${");
-   if(PreviousMustBeValue && Line && Line->Tokens.size() > 1)
-   {
-      // If the token before the previous one is an '@', the previous token is
-      // an annotation and can precede another identifier/value.
-      const FormatToken * PrePrevious = std::prev(Line->Tokens.end(), 2)->Tok;
-      if(PrePrevious->is(tok::at))
-         return;
-   }
-   if(Next->is(tok::exclaim) && PreviousMustBeValue)
-      return addUnwrappedLine();
-   bool NextMustBeValue = mustBeJSIdentOrValue(Keywords, Next);
-   bool NextEndsTemplateExpr =
-       Next->is(TT_TemplateString) && Next->TokenText.startswith("}");
-   if(NextMustBeValue && !NextEndsTemplateExpr && !PreviousStartsTemplateExpr
-      && (PreviousMustBeValue
-          || Previous->isOneOf(
-                 tok::r_square, tok::r_paren, tok::plusplus, tok::minusminus)))
-      return addUnwrappedLine();
-   if(PreviousMustBeValue && isJSDeclOrStmt(Keywords, Next))
-      return addUnwrappedLine();
-}
-
 void
 UnwrappedLineParser::parseStructuralElement()
 {
@@ -976,52 +832,6 @@ UnwrappedLineParser::parseStructuralElement()
 
    switch(FormatTok->Tok.getKind())
    {
-   case tok::at:
-      nextToken();
-      if(FormatTok->Tok.is(tok::l_brace))
-      {
-         nextToken();
-         parseBracedList();
-         break;
-      }
-      switch(FormatTok->Tok.getObjCKeywordID())
-      {
-      case tok::objc_public:
-      case tok::objc_protected:
-      case tok::objc_package:
-      case tok::objc_private:
-         return parseAccessSpecifier();
-      case tok::objc_interface:
-      case tok::objc_implementation:
-         return parseObjCInterfaceOrImplementation();
-      case tok::objc_protocol:
-         return parseObjCProtocol();
-      case tok::objc_end:
-         return;   // Handled by the caller.
-      case tok::objc_optional:
-      case tok::objc_required:
-         nextToken();
-         addUnwrappedLine();
-         return;
-      case tok::objc_autoreleasepool:
-         nextToken();
-         if(FormatTok->Tok.is(tok::l_brace))
-         {
-            if(Style.BraceWrapping.AfterObjCDeclaration)
-               addUnwrappedLine();
-            parseBlock(/*MustBeDeclaration=*/false);
-         }
-         addUnwrappedLine();
-         return;
-      case tok::objc_try:
-         // This branch isn't strictly necessary (the kw_try case below would
-         // do this too after the tok::at is parsed above).  But be explicit.
-         parseTryCatch();
-         return;
-      default:
-         break;
-      }
-      break;
    case tok::kw_asm:
       nextToken();
       if(FormatTok->is(tok::l_brace))
@@ -1133,14 +943,6 @@ UnwrappedLineParser::parseStructuralElement()
       const FormatToken * Previous = getPreviousToken();
       switch(FormatTok->Tok.getKind())
       {
-      case tok::at:
-         nextToken();
-         if(FormatTok->Tok.is(tok::l_brace))
-         {
-            nextToken();
-            parseBracedList();
-         }
-         break;
       case tok::kw_enum:
          // Ignore if this is part of "template <enum ...".
          if(Previous && Previous->is(tok::less))
@@ -1258,17 +1060,6 @@ UnwrappedLineParser::parseStructuralElement()
          break;
       }
       case tok::equal:
-         // Fat arrows (=>) have tok::TokenKind tok::equal but TokenType
-         // TT_JsFatArrow. The always start an expression or a child block if
-         // followed by a curly.
-         if(FormatTok->is(TT_JsFatArrow))
-         {
-            nextToken();
-            if(FormatTok->is(tok::l_brace))
-               parseChildBlock();
-            break;
-         }
-
          nextToken();
          if(FormatTok->Tok.is(tok::l_brace))
          {
@@ -1407,55 +1198,6 @@ UnwrappedLineParser::tryToParseLambdaIntroducer()
    return false;
 }
 
-void
-UnwrappedLineParser::tryToParseJSFunction()
-{
-   assert(
-       FormatTok->is(Keywords.kw_function)
-       || FormatTok->startsSequence(Keywords.kw_async, Keywords.kw_function));
-   if(FormatTok->is(Keywords.kw_async))
-      nextToken();
-   // Consume "function".
-   nextToken();
-
-   // Consume * (generator function). Treat it like C++'s overloaded operators.
-   if(FormatTok->is(tok::star))
-   {
-      FormatTok->Type = TT_OverloadedOperator;
-      nextToken();
-   }
-
-   // Consume function name.
-   if(FormatTok->is(tok::identifier))
-      nextToken();
-
-   if(FormatTok->isNot(tok::l_paren))
-      return;
-
-   // Parse formal parameter list.
-   parseParens();
-
-   if(FormatTok->is(tok::colon))
-   {
-      // Parse a type definition.
-      nextToken();
-
-      // Eat the type declaration. For braced inline object types, balance
-      // braces, otherwise just parse until finding an l_brace for the function
-      // body.
-      if(FormatTok->is(tok::l_brace))
-         tryToParseBracedList();
-      else
-         while(!FormatTok->isOneOf(tok::l_brace, tok::semi) && !eof())
-            nextToken();
-   }
-
-   if(FormatTok->is(tok::semi))
-      return;
-
-   parseChildBlock();
-}
-
 bool
 UnwrappedLineParser::tryToParseBracedList()
 {
@@ -1548,14 +1290,6 @@ UnwrappedLineParser::parseParens()
          if(!tryToParseBracedList())
             parseChildBlock();
          break;
-      case tok::at:
-         nextToken();
-         if(FormatTok->Tok.is(tok::l_brace))
-         {
-            nextToken();
-            parseBracedList();
-         }
-         break;
       case tok::kw_class:
          nextToken();
          break;
@@ -1597,14 +1331,6 @@ UnwrappedLineParser::parseSquare()
             parseChildBlock();
          break;
       }
-      case tok::at:
-         nextToken();
-         if(FormatTok->Tok.is(tok::l_brace))
-         {
-            nextToken();
-            parseBracedList();
-         }
-         break;
       default:
          nextToken();
          break;
@@ -1712,12 +1438,8 @@ UnwrappedLineParser::parseTryCatch()
    }
    while(1)
    {
-      if(FormatTok->is(tok::at))
-         nextToken();
       if(!(FormatTok->isOneOf(
-               tok::kw_catch, Keywords.kw___except, tok::kw___finally)
-           || (FormatTok->Tok.isObjCAtKeyword(tok::objc_catch)
-               || FormatTok->Tok.isObjCAtKeyword(tok::objc_finally))))
+             tok::kw_catch, Keywords.kw___except, tok::kw___finally)))
          break;
       nextToken();
       while(FormatTok->isNot(tok::l_brace))
@@ -1966,87 +1688,6 @@ UnwrappedLineParser::parseEnum()
 }
 
 void
-UnwrappedLineParser::parseJavaEnumBody()
-{
-   // Determine whether the enum is simple, i.e. does not have a semicolon or
-   // constants with class bodies. Simple enums can be formatted like braced
-   // lists, contracted to a single line, etc.
-   unsigned      StoredPosition = Tokens->getPosition();
-   bool          IsSimple       = true;
-   FormatToken * Tok            = Tokens->getNextToken();
-   while(Tok)
-   {
-      if(Tok->is(tok::r_brace))
-         break;
-      if(Tok->isOneOf(tok::l_brace, tok::semi))
-      {
-         IsSimple = false;
-         break;
-      }
-      // FIXME: This will also mark enums with braces in the arguments to enum
-      // constants as "not simple". This is probably fine in practice, though.
-      Tok = Tokens->getNextToken();
-   }
-   FormatTok = Tokens->setPosition(StoredPosition);
-
-   if(IsSimple)
-   {
-      nextToken();
-      parseBracedList();
-      addUnwrappedLine();
-      return;
-   }
-
-   // Parse the body of a more complex enum.
-   // First add a line for everything up to the "{".
-   nextToken();
-   addUnwrappedLine();
-   ++Line->Level;
-
-   // Parse the enum constants.
-   while(FormatTok)
-   {
-      if(FormatTok->is(tok::l_brace))
-      {
-         // Parse the constant's class body.
-         parseBlock(/*MustBeDeclaration=*/true,
-                    /*AddLevel=*/true,
-                    /*MunchSemi=*/false);
-      }
-      else if(FormatTok->is(tok::l_paren))
-      {
-         parseParens();
-      }
-      else if(FormatTok->is(tok::comma))
-      {
-         nextToken();
-         addUnwrappedLine();
-      }
-      else if(FormatTok->is(tok::semi))
-      {
-         nextToken();
-         addUnwrappedLine();
-         break;
-      }
-      else if(FormatTok->is(tok::r_brace))
-      {
-         addUnwrappedLine();
-         break;
-      }
-      else
-      {
-         nextToken();
-      }
-   }
-
-   // Parse the class body after the enum's ";" if any.
-   parseLevel(/*HasOpeningBrace=*/true);
-   nextToken();
-   --Line->Level;
-   addUnwrappedLine();
-}
-
-void
 UnwrappedLineParser::parseRecord(bool ParseAsExpr)
 {
    const FormatToken & InitialToken = *FormatTok;
@@ -2114,152 +1755,6 @@ UnwrappedLineParser::parseRecord(bool ParseAsExpr)
    // There is no addUnwrappedLine() here so that we fall through to parsing a
    // structural element afterwards. Thus, in "class A {} n, m;",
    // "} n, m;" will end up in one unwrapped line.
-}
-
-void
-UnwrappedLineParser::parseObjCProtocolList()
-{
-   assert(FormatTok->Tok.is(tok::less) && "'<' expected.");
-   do
-      nextToken();
-   while(!eof() && FormatTok->Tok.isNot(tok::greater));
-   nextToken();   // Skip '>'.
-}
-
-void
-UnwrappedLineParser::parseObjCUntilAtEnd()
-{
-   do
-   {
-      if(FormatTok->Tok.isObjCAtKeyword(tok::objc_end))
-      {
-         nextToken();
-         addUnwrappedLine();
-         break;
-      }
-      if(FormatTok->is(tok::l_brace))
-      {
-         parseBlock(/*MustBeDeclaration=*/false);
-         // In ObjC interfaces, nothing should be following the "}".
-         addUnwrappedLine();
-      }
-      else if(FormatTok->is(tok::r_brace))
-      {
-         // Ignore stray "}". parseStructuralElement doesn't consume them.
-         nextToken();
-         addUnwrappedLine();
-      }
-      else
-      {
-         parseStructuralElement();
-      }
-   } while(!eof());
-}
-
-void
-UnwrappedLineParser::parseObjCInterfaceOrImplementation()
-{
-   nextToken();
-   nextToken();   // interface name
-
-   // @interface can be followed by either a base class, or a category.
-   if(FormatTok->Tok.is(tok::colon))
-   {
-      nextToken();
-      nextToken();   // base class name
-   }
-   else if(FormatTok->Tok.is(tok::l_paren))
-      // Skip category, if present.
-      parseParens();
-
-   if(FormatTok->Tok.is(tok::less))
-      parseObjCProtocolList();
-
-   if(FormatTok->Tok.is(tok::l_brace))
-   {
-      if(Style.BraceWrapping.AfterObjCDeclaration)
-         addUnwrappedLine();
-      parseBlock(/*MustBeDeclaration=*/true);
-   }
-
-   // With instance variables, this puts '}' on its own line.  Without instance
-   // variables, this ends the @interface line.
-   addUnwrappedLine();
-
-   parseObjCUntilAtEnd();
-}
-
-void
-UnwrappedLineParser::parseObjCProtocol()
-{
-   nextToken();
-   nextToken();   // protocol name
-
-   if(FormatTok->Tok.is(tok::less))
-      parseObjCProtocolList();
-
-   // Check for protocol declaration.
-   if(FormatTok->Tok.is(tok::semi))
-   {
-      nextToken();
-      return addUnwrappedLine();
-   }
-
-   addUnwrappedLine();
-   parseObjCUntilAtEnd();
-}
-
-void
-UnwrappedLineParser::parseJavaScriptEs6ImportExport()
-{
-   bool IsImport = FormatTok->is(Keywords.kw_import);
-   assert(IsImport || FormatTok->is(tok::kw_export));
-   nextToken();
-
-   // Consume the "default" in "export default class/function".
-   if(FormatTok->is(tok::kw_default))
-      nextToken();
-
-   // Consume "async function", "function" and "default function", so that these
-   // get parsed as free-standing JS functions, i.e. do not require a trailing
-   // semicolon.
-   if(FormatTok->is(Keywords.kw_async))
-      nextToken();
-   if(FormatTok->is(Keywords.kw_function))
-   {
-      nextToken();
-      return;
-   }
-
-   // For imports, `export *`, `export {...}`, consume the rest of the line up
-   // to the terminating `;`. For everything else, just return and continue
-   // parsing the structural element, i.e. the declaration or expression for
-   // `export default`.
-   if(!IsImport && !FormatTok->isOneOf(tok::l_brace, tok::star)
-      && !FormatTok->isStringLiteral())
-      return;
-
-   while(!eof())
-   {
-      if(FormatTok->is(tok::semi))
-         return;
-      if(Line->Tokens.size() == 0)
-      {
-         // Common issue: Automatic Semicolon Insertion wrapped the line, so the
-         // import statement should terminate.
-         return;
-      }
-      if(FormatTok->is(tok::l_brace))
-      {
-         FormatTok->BlockKind = BK_Block;
-         nextToken();
-         parseBracedList();
-      }
-      else
-      {
-         nextToken();
-      }
-   }
 }
 
 LLVM_ATTRIBUTE_UNUSED static void

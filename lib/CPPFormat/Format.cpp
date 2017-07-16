@@ -18,7 +18,6 @@
 #include "ContinuationIndenter.h"
 #include "FormatTokenLexer.h"
 #include "NamespaceEndCommentsFixer.h"
-#include "SortJavaScriptImports.h"
 #include "TokenAnalyzer.h"
 #include "TokenAnnotator.h"
 #include "UnwrappedLineFormatter.h"
@@ -77,17 +76,6 @@ struct ScalarEnumerationTraits<FormatStyle::UseTabStyle>
       IO.enumCase(Value,
                   "ForContinuationAndIndentation",
                   FormatStyle::UT_ForContinuationAndIndentation);
-   }
-};
-
-template<>
-struct ScalarEnumerationTraits<FormatStyle::JavaScriptQuoteStyle>
-{
-   static void enumeration(IO & IO, FormatStyle::JavaScriptQuoteStyle & Value)
-   {
-      IO.enumCase(Value, "Leave", FormatStyle::JSQS_Leave);
-      IO.enumCase(Value, "Single", FormatStyle::JSQS_Single);
-      IO.enumCase(Value, "Double", FormatStyle::JSQS_Double);
    }
 };
 
@@ -369,8 +357,6 @@ struct MappingTraits<FormatStyle>
          && Style.BreakConstructorInitializers == FormatStyle::BCIS_BeforeColon)
          Style.BreakConstructorInitializers = FormatStyle::BCIS_BeforeComma;
 
-      IO.mapOptional("BreakAfterJavaFieldAnnotations",
-                     Style.BreakAfterJavaFieldAnnotations);
       IO.mapOptional("BreakStringLiterals", Style.BreakStringLiterals);
       IO.mapOptional("ColumnLimit", Style.ColumnLimit);
       IO.mapOptional("CommentPragmas", Style.CommentPragmas);
@@ -393,18 +379,12 @@ struct MappingTraits<FormatStyle>
       IO.mapOptional("IndentWidth", Style.IndentWidth);
       IO.mapOptional("IndentWrappedFunctionNames",
                      Style.IndentWrappedFunctionNames);
-      IO.mapOptional("JavaScriptQuotes", Style.JavaScriptQuotes);
-      IO.mapOptional("JavaScriptWrapImports", Style.JavaScriptWrapImports);
       IO.mapOptional("KeepEmptyLinesAtTheStartOfBlocks",
                      Style.KeepEmptyLinesAtTheStartOfBlocks);
       IO.mapOptional("MacroBlockBegin", Style.MacroBlockBegin);
       IO.mapOptional("MacroBlockEnd", Style.MacroBlockEnd);
       IO.mapOptional("MaxEmptyLinesToKeep", Style.MaxEmptyLinesToKeep);
       IO.mapOptional("NamespaceIndentation", Style.NamespaceIndentation);
-      IO.mapOptional("ObjCBlockIndentWidth", Style.ObjCBlockIndentWidth);
-      IO.mapOptional("ObjCSpaceAfterProperty", Style.ObjCSpaceAfterProperty);
-      IO.mapOptional("ObjCSpaceBeforeProtocolList",
-                     Style.ObjCSpaceBeforeProtocolList);
       IO.mapOptional("PenaltyBreakAssignment", Style.PenaltyBreakAssignment);
       IO.mapOptional("PenaltyBreakBeforeFirstCallParameter",
                      Style.PenaltyBreakBeforeFirstCallParameter);
@@ -451,7 +431,6 @@ struct MappingTraits<FormatStyle::BraceWrappingFlags>
       IO.mapOptional("AfterEnum", Wrapping.AfterEnum);
       IO.mapOptional("AfterFunction", Wrapping.AfterFunction);
       IO.mapOptional("AfterNamespace", Wrapping.AfterNamespace);
-      IO.mapOptional("AfterObjCDeclaration", Wrapping.AfterObjCDeclaration);
       IO.mapOptional("AfterStruct", Wrapping.AfterStruct);
       IO.mapOptional("AfterUnion", Wrapping.AfterUnion);
       IO.mapOptional("BeforeCatch", Wrapping.BeforeCatch);
@@ -562,7 +541,6 @@ expandPresets(const FormatStyle & Style)
                              false,
                              false,
                              false,
-                             false,
                              true,
                              true,
                              true};
@@ -593,14 +571,12 @@ expandPresets(const FormatStyle & Style)
       Expanded.BraceWrapping.AfterEnum             = true;
       Expanded.BraceWrapping.AfterFunction         = true;
       Expanded.BraceWrapping.AfterNamespace        = true;
-      Expanded.BraceWrapping.AfterObjCDeclaration  = true;
       Expanded.BraceWrapping.AfterStruct           = true;
       Expanded.BraceWrapping.BeforeCatch           = true;
       Expanded.BraceWrapping.BeforeElse            = true;
       break;
    case FormatStyle::BS_GNU:
       Expanded.BraceWrapping = {true,
-                                true,
                                 true,
                                 true,
                                 true,
@@ -659,11 +635,9 @@ getLLVMStyle()
                               false,
                               false,
                               false,
-                              false,
                               true,
                               true,
                               true};
-   LLVMStyle.BreakAfterJavaFieldAnnotations       = false;
    LLVMStyle.BreakConstructorInitializers = FormatStyle::BCIS_BeforeColon;
    LLVMStyle.BreakBeforeInheritanceComma  = false;
    LLVMStyle.BreakStringLiterals          = true;
@@ -687,15 +661,10 @@ getLLVMStyle()
    LLVMStyle.IndentCaseLabels   = false;
    LLVMStyle.IndentWrappedFunctionNames       = false;
    LLVMStyle.IndentWidth                      = 2;
-   LLVMStyle.JavaScriptQuotes                 = FormatStyle::JSQS_Leave;
-   LLVMStyle.JavaScriptWrapImports            = true;
    LLVMStyle.TabWidth                         = 8;
    LLVMStyle.MaxEmptyLinesToKeep              = 1;
    LLVMStyle.KeepEmptyLinesAtTheStartOfBlocks = true;
    LLVMStyle.NamespaceIndentation             = FormatStyle::NI_None;
-   LLVMStyle.ObjCBlockIndentWidth             = 2;
-   LLVMStyle.ObjCSpaceAfterProperty           = false;
-   LLVMStyle.ObjCSpaceBeforeProtocolList      = true;
    LLVMStyle.PointerAlignment                 = FormatStyle::PAS_Right;
    LLVMStyle.SpacesBeforeTrailingComments     = 1;
    LLVMStyle.Standard                         = FormatStyle::LS_Cpp11;
@@ -744,8 +713,6 @@ getGoogleStyle()
    GoogleStyle.IncludeIsMainRegex = "([-_](test|unittest))?$";
    GoogleStyle.IndentCaseLabels   = true;
    GoogleStyle.KeepEmptyLinesAtTheStartOfBlocks = false;
-   GoogleStyle.ObjCSpaceAfterProperty           = false;
-   GoogleStyle.ObjCSpaceBeforeProtocolList      = false;
    GoogleStyle.PointerAlignment                 = FormatStyle::PAS_Left;
    GoogleStyle.SpacesBeforeTrailingComments     = 2;
    GoogleStyle.Standard                         = FormatStyle::LS_Auto;
@@ -789,8 +756,6 @@ getMozillaStyle()
    MozillaStyle.Cpp11BracedListStyle              = false;
    MozillaStyle.FixNamespaceComments              = false;
    MozillaStyle.IndentCaseLabels                  = true;
-   MozillaStyle.ObjCSpaceAfterProperty            = true;
-   MozillaStyle.ObjCSpaceBeforeProtocolList       = false;
    MozillaStyle.PenaltyReturnTypeOnItsOwnLine     = 200;
    MozillaStyle.PointerAlignment                  = FormatStyle::PAS_Left;
    MozillaStyle.SpaceAfterTemplateKeyword         = false;
@@ -813,8 +778,6 @@ getWebKitStyle()
    Style.FixNamespaceComments         = false;
    Style.IndentWidth                  = 4;
    Style.NamespaceIndentation         = FormatStyle::NI_Inner;
-   Style.ObjCBlockIndentWidth         = 4;
-   Style.ObjCSpaceAfterProperty       = true;
    Style.PointerAlignment             = FormatStyle::PAS_Left;
    return Style;
 }
@@ -929,108 +892,6 @@ configurationAsText(const FormatStyle & Style)
 
 namespace
 {
-
-class JavaScriptRequoter : public TokenAnalyzer
-{
-public:
-   JavaScriptRequoter(const Environment & Env, const FormatStyle & Style)
-   : TokenAnalyzer(Env, Style)
-   {
-   }
-
-   tooling::Replacements
-   analyze(TokenAnnotator &                   Annotator,
-           SmallVectorImpl<AnnotatedLine *> & AnnotatedLines,
-           FormatTokenLexer &                 Tokens) override
-   {
-      AffectedRangeMgr.computeAffectedLines(AnnotatedLines.begin(),
-                                            AnnotatedLines.end());
-      tooling::Replacements Result;
-      requoteJSStringLiteral(AnnotatedLines, Result);
-      return Result;
-   }
-
-private:
-   // Replaces double/single-quoted string literal as appropriate, re-escaping
-   // the contents in the process.
-   void requoteJSStringLiteral(SmallVectorImpl<AnnotatedLine *> & Lines,
-                               tooling::Replacements &            Result)
-   {
-      for(AnnotatedLine * Line : Lines)
-      {
-         requoteJSStringLiteral(Line->Children, Result);
-         if(!Line->Affected)
-            continue;
-         for(FormatToken * FormatTok = Line->First; FormatTok;
-             FormatTok               = FormatTok->Next)
-         {
-            StringRef Input = FormatTok->TokenText;
-            if(FormatTok->Finalized || !FormatTok->isStringLiteral() ||
-               // NB: testing for not starting with a double quote to avoid
-               // breaking `template strings`.
-               (Style.JavaScriptQuotes == FormatStyle::JSQS_Single
-                && !Input.startswith("\""))
-               || (Style.JavaScriptQuotes == FormatStyle::JSQS_Double
-                   && !Input.startswith("\'")))
-               continue;
-
-            // Change start and end quote.
-            bool IsSingle = Style.JavaScriptQuotes == FormatStyle::JSQS_Single;
-            SourceLocation Start   = FormatTok->Tok.getLocation();
-            auto           Replace = [&](SourceLocation Start,
-                               unsigned       Length,
-                               StringRef      ReplacementText) {
-               auto Err = Result.add(tooling::Replacement(
-                   Env.getSourceManager(), Start, Length, ReplacementText));
-               // FIXME: handle error. For now, print error message and skip the
-               // replacement for release version.
-               if(Err)
-               {
-                  llvm::errs() << llvm::toString(std::move(Err)) << "\n";
-                  assert(false);
-               }
-            };
-            Replace(Start, 1, IsSingle ? "'" : "\"");
-            Replace(FormatTok->Tok.getEndLoc().getLocWithOffset(-1),
-                    1,
-                    IsSingle ? "'" : "\"");
-
-            // Escape internal quotes.
-            bool Escaped = false;
-            for(size_t i = 1; i < Input.size() - 1; i++)
-            {
-               switch(Input[i])
-               {
-               case '\\':
-                  if(!Escaped && i + 1 < Input.size()
-                     && ((IsSingle && Input[i + 1] == '"')
-                         || (!IsSingle && Input[i + 1] == '\'')))
-                  {
-                     // Remove this \, it's escaping a " or ' that no longer
-                     // needs escaping
-                     Replace(Start.getLocWithOffset(i), 1, "");
-                     continue;
-                  }
-                  Escaped = !Escaped;
-                  break;
-               case '\"':
-               case '\'':
-                  if(!Escaped && IsSingle == (Input[i] == '\''))
-                  {
-                     // Escape the quote.
-                     Replace(Start.getLocWithOffset(i), 0, "\\");
-                  }
-                  Escaped = false;
-                  break;
-               default:
-                  Escaped = false;
-                  break;
-               }
-            }
-         }
-      }
-   }
-};
 
 class Formatter : public TokenAnalyzer
 {
@@ -1695,15 +1556,6 @@ sortCppIncludes(const FormatStyle &      Style,
    return Replaces;
 }
 
-bool
-isMpegTS(StringRef Code)
-{
-   // MPEG transport streams use the ".ts" file extension. clang-format should
-   // not attempt to format those. MPEG TS' frame format starts with 0x47 every
-   // 189 bytes - detect that and return.
-   return Code.size() > 188 && Code[0] == 0x47 && Code[188] == 0x47;
-}
-
 tooling::Replacements
 sortIncludes(const FormatStyle &      Style,
              StringRef                Code,
@@ -2228,8 +2080,6 @@ getFormattingLangOpts(const FormatStyle & Style)
    LangOpts.LineComment      = 1;
    LangOpts.CXXOperatorNames = 1;
    LangOpts.Bool             = 1;
-   LangOpts.ObjC1            = 1;
-   LangOpts.ObjC2            = 1;
    LangOpts.MicrosoftExt     = 1;   // To get kw___try, kw___finally.
    LangOpts.DeclSpecKeyword  = 1;   // To get __declspec.
    return LangOpts;

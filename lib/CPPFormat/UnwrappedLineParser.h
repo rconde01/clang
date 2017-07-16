@@ -98,7 +98,6 @@ private:
    void parsePPElse();
    void parsePPEndIf();
    void parsePPUnknown();
-   void readTokenWithJavaScriptASI();
    void parseStructuralElement();
    bool tryToParseBracedList();
    bool parseBracedList(bool           ContinueOnSemicolons = false,
@@ -116,19 +115,12 @@ private:
    void parseNew();
    void parseAccessSpecifier();
    bool parseEnum();
-   void parseJavaEnumBody();
    // Parses a record (aka class) as a top level element. If ParseAsExpr is
    // true, parses the record as a child block, i.e. if the class declaration is
    // an expression.
    void                parseRecord(bool ParseAsExpr = false);
-   void                parseObjCProtocolList();
-   void                parseObjCUntilAtEnd();
-   void                parseObjCInterfaceOrImplementation();
-   void                parseObjCProtocol();
-   void                parseJavaScriptEs6ImportExport();
    bool                tryToParseLambda();
    bool                tryToParseLambdaIntroducer();
-   void                tryToParseJSFunction();
    void                addUnwrappedLine();
    bool                eof() const;
    void                nextToken();
