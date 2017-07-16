@@ -2,7 +2,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
-add_clang_unittest(FormatTests
+add_clang_unittest(CPPFormatTests
   CleanupTest.cpp
   FormatTest.cpp
   FormatTestComments.cpp
@@ -12,7 +12,7 @@ add_clang_unittest(FormatTests
   UsingDeclarationsSorterTest.cpp
   )
 
-target_link_libraries(FormatTests
+target_link_libraries(CPPFormatTests
   clangBasic
   cppFormat
   clangFrontend
