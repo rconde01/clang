@@ -170,7 +170,7 @@ public:
       // Disallow line merging if there is a break at the start of one of the
       // input lines.
       for (unsigned i = 0; i < MergedLines; ++i)
-        if (Next[i + 1]->First->NewlinesBefore > 0)
+        if (Next[i + 1]->First->UserNewlinesBefore > 0)
           MergedLines = 0;
     if (!DryRun)
       for (unsigned i = 0; i < MergedLines; ++i)
@@ -197,7 +197,7 @@ private:
     if (I[1]->Type == LT_Invalid || I[1]->First->MustBreakBefore)
       return 0;
     if (TheLine->InPPDirective &&
-        (!I[1]->InPPDirective || I[1]->First->HasUnescapedNewline))
+        (!I[1]->InPPDirective || I[1]->First->HasUnescapedNewlineBefore))
       return 0;
 
     if (Style.ColumnLimit > 0 && Indent > Style.ColumnLimit)
@@ -327,7 +327,7 @@ private:
                  : 0;
     }
     if (TheLine->InPPDirective &&
-        (TheLine->First->HasUnescapedNewline || TheLine->First->IsFirst)) {
+        (TheLine->First->HasUnescapedNewlineBefore || TheLine->First->IsFirst)) {
       return tryMergeSimplePPDirective(I, E, Limit);
     }
     return 0;
@@ -339,7 +339,7 @@ private:
                             unsigned Limit) {
     if (Limit == 0)
       return 0;
-    if (I + 2 != E && I[2]->InPPDirective && !I[2]->First->HasUnescapedNewline)
+    if (I + 2 != E && I[2]->InPPDirective && !I[2]->First->HasUnescapedNewlineBefore)
       return 0;
     if (1 + I[1]->Last->TotalLength > Limit)
       return 0;
@@ -355,7 +355,7 @@ private:
         (I[1]->First->is(tok::l_brace) && !Style.AllowShortBlocksOnASingleLine))
       return 0;
     if (I[1]->InPPDirective != (*I)->InPPDirective ||
-        (I[1]->InPPDirective && I[1]->First->HasUnescapedNewline))
+        (I[1]->InPPDirective && I[1]->First->HasUnescapedNewlineBefore))
       return 0;
     Limit = limitConsideringMacros(I + 1, E, Limit);
     AnnotatedLine &Line = **I;
@@ -498,7 +498,7 @@ private:
                          SmallVectorImpl<AnnotatedLine *>::const_iterator E,
                          unsigned Limit) {
     if (I[0]->InPPDirective && I + 1 != E &&
-        !I[1]->First->HasUnescapedNewline && !I[1]->First->is(tok::eof)) {
+        !I[1]->First->HasUnescapedNewlineBefore && !I[1]->First->is(tok::eof)) {
       return Limit < 2 ? 0 : Limit - 2;
     }
     return Limit;
@@ -678,7 +678,7 @@ public:
     while (State.NextToken) {
       bool Newline =
           Indenter->mustBreak(State) ||
-          (Indenter->canBreak(State) && State.NextToken->NewlinesBefore > 0);
+          (Indenter->canBreak(State) && State.NextToken->UserNewlinesBefore > 0);
       unsigned Penalty = 0;
       formatChildren(State, Newline, /*DryRun=*/false, Penalty);
       Indenter->addTokenToState(State, Newline, /*DryRun=*/false);
@@ -966,7 +966,7 @@ UnwrappedLineFormatter::format(const SmallVectorImpl<AnnotatedLine *> &Lines,
       // Adapt following lines on the current indent level to the same level
       // unless the current \c AnnotatedLine is not at the beginning of a line.
       bool StartsNewLine =
-          TheLine.First->NewlinesBefore > 0 || TheLine.First->IsFirst;
+          TheLine.First->UserNewlinesBefore > 0 || TheLine.First->IsFirst;
       if (StartsNewLine)
         IndentTracker.adjustToUnmodifiedLine(TheLine);
       if (!DryRun) {
@@ -1001,13 +1001,13 @@ void UnwrappedLineFormatter::formatFirstToken(const AnnotatedLine &Line,
                                               unsigned Indent) {
   FormatToken& RootToken = *Line.First;
   if (RootToken.is(tok::eof)) {
-    unsigned Newlines = std::min(RootToken.NewlinesBefore, 1u);
+    unsigned Newlines = std::min(RootToken.UserNewlinesBefore, 1u);
     Whitespaces->replaceWhitespace(RootToken, Newlines, /*Spaces=*/0,
                                    /*StartOfTokenColumn=*/0);
     return;
   }
   unsigned Newlines =
-      std::min(RootToken.NewlinesBefore, Style.MaxEmptyLinesToKeep + 1);
+      std::min(RootToken.UserNewlinesBefore, Style.MaxEmptyLinesToKeep + 1);
   // Remove empty lines before "}" where applicable.
   if (RootToken.is(tok::r_brace) &&
       (!RootToken.Next ||
@@ -1015,7 +1015,7 @@ void UnwrappedLineFormatter::formatFirstToken(const AnnotatedLine &Line,
     Newlines = std::min(Newlines, 1u);
   if (Newlines == 0 && !RootToken.IsFirst)
     Newlines = 1;
-  if (RootToken.IsFirst && !RootToken.HasUnescapedNewline)
+  if (RootToken.IsFirst && !RootToken.HasUnescapedNewlineBefore)
     Newlines = 0;
 
   // Remove empty lines after "{".
@@ -1027,17 +1027,17 @@ void UnwrappedLineFormatter::formatFirstToken(const AnnotatedLine &Line,
 
   // Insert extra new line before access specifiers.
   if (PreviousLine && PreviousLine->Last->isOneOf(tok::semi, tok::r_brace) &&
-      RootToken.isAccessSpecifier() && RootToken.NewlinesBefore == 1)
+      RootToken.isAccessSpecifier() && RootToken.UserNewlinesBefore == 1)
     ++Newlines;
 
   // Remove empty lines after access specifiers.
   if (PreviousLine && PreviousLine->First->isAccessSpecifier() &&
-      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewline))
+      (!PreviousLine->InPPDirective || !RootToken.HasUnescapedNewlineBefore))
     Newlines = std::min(1u, Newlines);
 
   Whitespaces->replaceWhitespace(RootToken, Newlines, Indent, Indent,
                                  Line.InPPDirective &&
-                                     !RootToken.HasUnescapedNewline);
+                                     !RootToken.HasUnescapedNewlineBefore);
 }
 
 unsigned
@@ -1053,7 +1053,7 @@ UnwrappedLineFormatter::getColumnLimit(bool InPPDirective,
        (NextLine->InPPDirective &&
         // If there is an unescaped newline between this line and the next, the
         // next line starts a new preprocessor directive.
-        !NextLine->First->HasUnescapedNewline));
+        !NextLine->First->HasUnescapedNewlineBefore));
   return Style.ColumnLimit - (ContinuesPPDirective ? 2 : 0);
 }
 

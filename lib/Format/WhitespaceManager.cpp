@@ -50,7 +50,7 @@ void WhitespaceManager::replaceWhitespace(FormatToken &Tok, unsigned Newlines,
   if (Tok.Finalized)
     return;
   Tok.Decision = (Newlines > 0) ? FD_Break : FD_Continue;
-  Changes.push_back(Change(Tok, /*CreateReplacement=*/true, Tok.WhitespaceRange,
+  Changes.push_back(Change(Tok, /*CreateReplacement=*/true, Tok.PrecedingWhitespaceRange,
                            Spaces, StartOfTokenColumn, Newlines, "", "",
                            InPPDirective && !Tok.IsFirst,
                            /*IsInsideToken=*/false));
@@ -61,8 +61,8 @@ void WhitespaceManager::addUntouchableToken(const FormatToken &Tok,
   if (Tok.Finalized)
     return;
   Changes.push_back(Change(Tok, /*CreateReplacement=*/false,
-                           Tok.WhitespaceRange, /*Spaces=*/0,
-                           Tok.OriginalColumn, Tok.NewlinesBefore, "", "",
+                           Tok.PrecedingWhitespaceRange, /*Spaces=*/0,
+                           Tok.OriginalColumn, Tok.UserNewlinesBefore, "", "",
                            InPPDirective && !Tok.IsFirst,
                            /*IsInsideToken=*/false));
 }

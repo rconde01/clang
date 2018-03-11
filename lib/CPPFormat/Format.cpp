@@ -956,7 +956,7 @@ private:
             return true;
          for(FormatToken * Tok = Line->First->Next; Tok; Tok = Tok->Next)
          {
-            if(Tok->WhitespaceRange.getBegin() == Tok->WhitespaceRange.getEnd())
+            if(Tok->PrecedingWhitespaceRange.getBegin() == Tok->PrecedingWhitespaceRange.getEnd())
             {
                if(Tok->is(tok::coloncolon)
                   && Tok->Previous->is(TT_TemplateOpener))
@@ -980,10 +980,10 @@ private:
          {
             if(!Tok->is(TT_PointerOrReference))
                continue;
-            bool SpaceBefore = Tok->WhitespaceRange.getBegin()
-                               != Tok->WhitespaceRange.getEnd();
-            bool SpaceAfter = Tok->Next->WhitespaceRange.getBegin()
-                              != Tok->Next->WhitespaceRange.getEnd();
+            bool SpaceBefore = Tok->PrecedingWhitespaceRange.getBegin()
+                               != Tok->PrecedingWhitespaceRange.getEnd();
+            bool SpaceAfter = Tok->Next->PrecedingWhitespaceRange.getBegin()
+                              != Tok->Next->PrecedingWhitespaceRange.getEnd();
             if(SpaceBefore && !SpaceAfter)
                ++AlignmentDiff;
             if(!SpaceBefore && SpaceAfter)

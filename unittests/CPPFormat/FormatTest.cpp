@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 
 #include "../Tooling/ReplacementTest.h"
 #include "FormatTestUtils.h"
@@ -25,8 +25,6 @@ using clang::tooling::toReplacements;
 namespace clang {
 namespace format {
 namespace {
-
-FormatStyle getGoogleStyle() { return getGoogleStyle(FormatStyle::LK_Cpp); }
 
 class FormatTest : public ::testing::Test {
 protected:
@@ -73,13 +71,6 @@ protected:
   void verifyFormat(llvm::StringRef Code,
                     const FormatStyle &Style = getLLVMStyle()) {
     EXPECT_EQ(Code.str(), format(test::messUp(Code), Style));
-    if (Style.Language == FormatStyle::LK_Cpp) {
-      // Objective-C++ is a superset of C++, so everything checked for C++
-      // needs to be checked for Objective-C++ as well.
-      FormatStyle ObjCStyle = Style;
-      ObjCStyle.Language = FormatStyle::LK_ObjC;
-      EXPECT_EQ(Code.str(), format(test::messUp(Code), ObjCStyle));
-    }
   }
 
   void verifyIncompleteFormat(llvm::StringRef Code,
@@ -2051,7 +2042,7 @@ TEST_F(FormatTest, MacrosWithoutTrailingSemicolon) {
 
   verifyFormat("VISIT_GL_CALL(GenBuffers, void, (GLsizei n, GLuint* buffers), "
                "(n, buffers))\n",
-               getChromiumStyle(FormatStyle::LK_Cpp));
+               getChromiumStyle());
 }
 
 TEST_F(FormatTest, MacroCallsWithoutTrailingSemicolon) {
@@ -4998,7 +4989,7 @@ TEST_F(FormatTest, UnderstandsTemplateParameters) {
   EXPECT_EQ("auto x = [] { A<A<A<A>>> a; };",
             format("auto x=[]{A<A<A<A> >> a;};", getGoogleStyle()));
 
-  verifyFormat("A<A>> a;", getChromiumStyle(FormatStyle::LK_Cpp));
+  verifyFormat("A<A>> a;", getChromiumStyle());
 
   verifyFormat("test >> a >> b;");
   verifyFormat("test << a >> b;");
@@ -9398,91 +9389,6 @@ TEST_F(FormatTest, UnderstandPragmaOption) {
   EXPECT_EQ(Styles[0], Styles[i]) << "Style #" << i << " of " << Styles.size() \
                                   << " differs from Style #0"
 
-TEST_F(FormatTest, GetsPredefinedStyleByName) {
-  SmallVector<FormatStyle, 3> Styles;
-  Styles.resize(3);
-
-  Styles[0] = getLLVMStyle();
-  EXPECT_TRUE(getPredefinedStyle("LLVM", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("lLvM", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getGoogleStyle();
-  EXPECT_TRUE(getPredefinedStyle("Google", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("gOOgle", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getGoogleStyle(FormatStyle::LK_JavaScript);
-  EXPECT_TRUE(
-      getPredefinedStyle("Google", FormatStyle::LK_JavaScript, &Styles[1]));
-  EXPECT_TRUE(
-      getPredefinedStyle("gOOgle", FormatStyle::LK_JavaScript, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getChromiumStyle(FormatStyle::LK_Cpp);
-  EXPECT_TRUE(getPredefinedStyle("Chromium", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("cHRoMiUM", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getMozillaStyle();
-  EXPECT_TRUE(getPredefinedStyle("Mozilla", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("moZILla", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getWebKitStyle();
-  EXPECT_TRUE(getPredefinedStyle("WebKit", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("wEbKit", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles[0] = getGNUStyle();
-  EXPECT_TRUE(getPredefinedStyle("GNU", FormatStyle::LK_Cpp, &Styles[1]));
-  EXPECT_TRUE(getPredefinedStyle("gnU", FormatStyle::LK_Cpp, &Styles[2]));
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  EXPECT_FALSE(getPredefinedStyle("qwerty", FormatStyle::LK_Cpp, &Styles[0]));
-}
-
-TEST_F(FormatTest, GetsCorrectBasedOnStyle) {
-  SmallVector<FormatStyle, 8> Styles;
-  Styles.resize(2);
-
-  Styles[0] = getGoogleStyle();
-  Styles[1] = getLLVMStyle();
-  EXPECT_EQ(0, parseConfiguration("BasedOnStyle: Google", &Styles[1]).value());
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-
-  Styles.resize(5);
-  Styles[0] = getGoogleStyle(FormatStyle::LK_JavaScript);
-  Styles[1] = getLLVMStyle();
-  Styles[1].Language = FormatStyle::LK_JavaScript;
-  EXPECT_EQ(0, parseConfiguration("BasedOnStyle: Google", &Styles[1]).value());
-
-  Styles[2] = getLLVMStyle();
-  Styles[2].Language = FormatStyle::LK_JavaScript;
-  EXPECT_EQ(0, parseConfiguration("Language: JavaScript\n"
-                                  "BasedOnStyle: Google",
-                                  &Styles[2])
-                   .value());
-
-  Styles[3] = getLLVMStyle();
-  Styles[3].Language = FormatStyle::LK_JavaScript;
-  EXPECT_EQ(0, parseConfiguration("BasedOnStyle: Google\n"
-                                  "Language: JavaScript",
-                                  &Styles[3])
-                   .value());
-
-  Styles[4] = getLLVMStyle();
-  Styles[4].Language = FormatStyle::LK_JavaScript;
-  EXPECT_EQ(0, parseConfiguration("---\n"
-                                  "BasedOnStyle: LLVM\n"
-                                  "IndentWidth: 123\n"
-                                  "---\n"
-                                  "BasedOnStyle: Google\n"
-                                  "Language: JavaScript",
-                                  &Styles[4])
-                   .value());
-  EXPECT_ALL_STYLES_EQUAL(Styles);
-}
 
 #define CHECK_PARSE_BOOL_FIELD(FIELD, CONFIG_NAME)                             \
   Style.FIELD = false;                                                         \
@@ -9514,7 +9420,6 @@ TEST_F(FormatTest, GetsCorrectBasedOnStyle) {
 
 TEST_F(FormatTest, ParsesConfigurationBools) {
   FormatStyle Style = {};
-  Style.Language = FormatStyle::LK_Cpp;
   CHECK_PARSE_BOOL(AlignOperands);
   CHECK_PARSE_BOOL(AlignTrailingComments);
   CHECK_PARSE_BOOL(AlignConsecutiveAssignments);
@@ -9527,7 +9432,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(AlwaysBreakTemplateDeclarations);
   CHECK_PARSE_BOOL(BinPackArguments);
   CHECK_PARSE_BOOL(BinPackParameters);
-  CHECK_PARSE_BOOL(BreakAfterJavaFieldAnnotations);
   CHECK_PARSE_BOOL(BreakBeforeTernaryOperators);
   CHECK_PARSE_BOOL(BreakStringLiterals);
   CHECK_PARSE_BOOL(BreakBeforeInheritanceComma)
@@ -9539,8 +9443,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_BOOL(IndentCaseLabels);
   CHECK_PARSE_BOOL(IndentWrappedFunctionNames);
   CHECK_PARSE_BOOL(KeepEmptyLinesAtTheStartOfBlocks);
-  CHECK_PARSE_BOOL(ObjCSpaceAfterProperty);
-  CHECK_PARSE_BOOL(ObjCSpaceBeforeProtocolList);
   CHECK_PARSE_BOOL(Cpp11BracedListStyle);
   CHECK_PARSE_BOOL(ReflowComments);
   CHECK_PARSE_BOOL(SortIncludes);
@@ -9560,7 +9462,6 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterEnum);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterFunction);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterNamespace);
-  CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterObjCDeclaration);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterStruct);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, AfterUnion);
   CHECK_PARSE_NESTED_BOOL(BraceWrapping, BeforeCatch);
@@ -9575,11 +9476,9 @@ TEST_F(FormatTest, ParsesConfigurationBools) {
 
 TEST_F(FormatTest, ParsesConfiguration) {
   FormatStyle Style = {};
-  Style.Language = FormatStyle::LK_Cpp;
   CHECK_PARSE("AccessModifierOffset: -1234", AccessModifierOffset, -1234);
   CHECK_PARSE("ConstructorInitializerIndentWidth: 1234",
               ConstructorInitializerIndentWidth, 1234u);
-  CHECK_PARSE("ObjCBlockIndentWidth: 1234", ObjCBlockIndentWidth, 1234u);
   CHECK_PARSE("ColumnLimit: 1234", ColumnLimit, 1234u);
   CHECK_PARSE("MaxEmptyLinesToKeep: 1234", MaxEmptyLinesToKeep, 1234u);
   CHECK_PARSE("PenaltyBreakAssignment: 1234",
@@ -9783,7 +9682,6 @@ TEST_F(FormatTest, ParsesConfiguration) {
 
 TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
   FormatStyle Style = {};
-  Style.Language = FormatStyle::LK_Cpp;
   CHECK_PARSE("Language: Cpp\n"
               "IndentWidth: 12",
               IndentWidth, 12u);
@@ -9793,20 +9691,6 @@ TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
             ParseError::Unsuitable);
   EXPECT_EQ(12u, Style.IndentWidth);
   CHECK_PARSE("IndentWidth: 56", IndentWidth, 56u);
-  EXPECT_EQ(FormatStyle::LK_Cpp, Style.Language);
-
-  Style.Language = FormatStyle::LK_JavaScript;
-  CHECK_PARSE("Language: JavaScript\n"
-              "IndentWidth: 12",
-              IndentWidth, 12u);
-  CHECK_PARSE("IndentWidth: 23", IndentWidth, 23u);
-  EXPECT_EQ(parseConfiguration("Language: Cpp\n"
-                               "IndentWidth: 34",
-                               &Style),
-            ParseError::Unsuitable);
-  EXPECT_EQ(23u, Style.IndentWidth);
-  CHECK_PARSE("IndentWidth: 56", IndentWidth, 56u);
-  EXPECT_EQ(FormatStyle::LK_JavaScript, Style.Language);
 
   CHECK_PARSE("BasedOnStyle: LLVM\n"
               "IndentWidth: 67",
@@ -9821,7 +9705,6 @@ TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
               "...\n",
               IndentWidth, 12u);
 
-  Style.Language = FormatStyle::LK_Cpp;
   CHECK_PARSE("---\n"
               "Language: JavaScript\n"
               "IndentWidth: 12\n"
@@ -9877,38 +9760,14 @@ TEST_F(FormatTest, ParsesConfigurationWithLanguages) {
                                "...\n",
                                &Style),
             ParseError::Error);
-
-  EXPECT_EQ(FormatStyle::LK_Cpp, Style.Language);
 }
 
 #undef CHECK_PARSE
-
-TEST_F(FormatTest, UsesLanguageForBasedOnStyle) {
-  FormatStyle Style = {};
-  Style.Language = FormatStyle::LK_JavaScript;
-  Style.BreakBeforeTernaryOperators = true;
-  EXPECT_EQ(0, parseConfiguration("BasedOnStyle: Google", &Style).value());
-  EXPECT_FALSE(Style.BreakBeforeTernaryOperators);
-
-  Style.BreakBeforeTernaryOperators = true;
-  EXPECT_EQ(0, parseConfiguration("---\n"
-                                  "BasedOnStyle: Google\n"
-                                  "---\n"
-                                  "Language: JavaScript\n"
-                                  "IndentWidth: 76\n"
-                                  "...\n",
-                                  &Style)
-                   .value());
-  EXPECT_FALSE(Style.BreakBeforeTernaryOperators);
-  EXPECT_EQ(76u, Style.IndentWidth);
-  EXPECT_EQ(FormatStyle::LK_JavaScript, Style.Language);
-}
 
 TEST_F(FormatTest, ConfigurationRoundTripTest) {
   FormatStyle Style = getLLVMStyle();
   std::string YAML = configurationAsText(Style);
   FormatStyle ParsedStyle = {};
-  ParsedStyle.Language = FormatStyle::LK_Cpp;
   EXPECT_EQ(0, parseConfiguration(YAML, &ParsedStyle).value());
   EXPECT_EQ(Style, ParsedStyle);
 }
@@ -10563,80 +10422,6 @@ TEST_F(FormatTest, FormatsBlocks) {
   verifyFormat("Block b = ^int *(A *a, B *b) {}");
   verifyFormat("BOOL (^aaa)(void) = ^BOOL {\n"
                "};");
-
-  FormatStyle FourIndent = getLLVMStyle();
-  FourIndent.ObjCBlockIndentWidth = 4;
-  verifyFormat("[operation setCompletionBlock:^{\n"
-               "    [self onOperationDone];\n"
-               "}];",
-               FourIndent);
-}
-
-TEST_F(FormatTest, FormatsBlocksWithZeroColumnWidth) {
-  FormatStyle ZeroColumn = getLLVMStyle();
-  ZeroColumn.ColumnLimit = 0;
-
-  verifyFormat("[[SessionService sharedService] "
-               "loadWindowWithCompletionBlock:^(SessionWindow *window) {\n"
-               "  if (window) {\n"
-               "    [self windowDidLoad:window];\n"
-               "  } else {\n"
-               "    [self errorLoadingWindow];\n"
-               "  }\n"
-               "}];",
-               ZeroColumn);
-  EXPECT_EQ("[[SessionService sharedService]\n"
-            "    loadWindowWithCompletionBlock:^(SessionWindow *window) {\n"
-            "      if (window) {\n"
-            "        [self windowDidLoad:window];\n"
-            "      } else {\n"
-            "        [self errorLoadingWindow];\n"
-            "      }\n"
-            "    }];",
-            format("[[SessionService sharedService]\n"
-                   "loadWindowWithCompletionBlock:^(SessionWindow *window) {\n"
-                   "                if (window) {\n"
-                   "    [self windowDidLoad:window];\n"
-                   "  } else {\n"
-                   "    [self errorLoadingWindow];\n"
-                   "  }\n"
-                   "}];",
-                   ZeroColumn));
-  verifyFormat("[myObject doSomethingWith:arg1\n"
-               "    firstBlock:^(Foo *a) {\n"
-               "      // ...\n"
-               "      int i;\n"
-               "    }\n"
-               "    secondBlock:^(Bar *b) {\n"
-               "      // ...\n"
-               "      int i;\n"
-               "    }\n"
-               "    thirdBlock:^Foo(Bar *b) {\n"
-               "      // ...\n"
-               "      int i;\n"
-               "    }];",
-               ZeroColumn);
-  verifyFormat("f(^{\n"
-               "  @autoreleasepool {\n"
-               "    if (a) {\n"
-               "      g();\n"
-               "    }\n"
-               "  }\n"
-               "});",
-               ZeroColumn);
-  verifyFormat("void (^largeBlock)(void) = ^{\n"
-               "  // ...\n"
-               "};",
-               ZeroColumn);
-
-  ZeroColumn.AllowShortBlocksOnASingleLine = true;
-  EXPECT_EQ("void (^largeBlock)(void) = ^{ int i; };",
-            format("void   (^largeBlock)(void) = ^{ int   i; };", ZeroColumn));
-  ZeroColumn.AllowShortBlocksOnASingleLine = false;
-  EXPECT_EQ("void (^largeBlock)(void) = ^{\n"
-            "  int i;\n"
-            "};",
-            format("void   (^largeBlock)(void) = ^{ int   i; };", ZeroColumn));
 }
 
 TEST_F(FormatTest, SupportsCRLF) {
@@ -10919,12 +10704,6 @@ TEST_F(FormatTest, DisableRegions) {
 TEST_F(FormatTest, DoNotCrashOnInvalidInput) {
   format("? ) =");
   verifyNoCrash("#define a\\\n /**/}");
-}
-
-TEST_F(FormatTest, FormatsTableGenCode) {
-  FormatStyle Style = getLLVMStyle();
-  Style.Language = FormatStyle::LK_TableGen;
-  verifyFormat("include \"a.td\"\ninclude \"b.td\"", Style);
 }
 
 TEST_F(FormatTest, ArrayOfTemplates) {

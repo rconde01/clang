@@ -51,7 +51,7 @@ ArrayRef<FormatToken *> FormatTokenLexer::lex() {
       handleTemplateStrings();
     }
     tryMergePreviousTokens();
-    if (Tokens.back()->NewlinesBefore > 0 || Tokens.back()->IsMultiline)
+    if (Tokens.back()->UserNewlinesBefore > 0 || Tokens.back()->IsMultiline)
       FirstInLineIndex = Tokens.size() - 1;
   } while (Tokens.back()->Tok.isNot(tok::eof));
   return Tokens;
@@ -119,7 +119,7 @@ bool FormatTokenLexer::tryMergeNSStringLiteral() {
   At->Tok.setKind(tok::string_literal);
   At->TokenText = StringRef(At->TokenText.begin(),
                             String->TokenText.end() - At->TokenText.begin());
-  At->ColumnWidth += String->ColumnWidth;
+  At->FirstLineColumnWidth += String->FirstLineColumnWidth;
   At->Type = TT_ObjCStringLiteral;
   Tokens.erase(Tokens.end() - 1);
   return true;
@@ -140,13 +140,13 @@ bool FormatTokenLexer::tryMergeLessLess() {
     return false;
 
   // Only merge if there currently is no whitespace between the two "<".
-  if (First[1]->WhitespaceRange.getBegin() !=
-      First[1]->WhitespaceRange.getEnd())
+  if (First[1]->PrecedingWhitespaceRange.getBegin() !=
+      First[1]->PrecedingWhitespaceRange.getEnd())
     return false;
 
   First[0]->Tok.setKind(tok::lessless);
   First[0]->TokenText = "<<";
-  First[0]->ColumnWidth += 1;
+  First[0]->FirstLineColumnWidth += 1;
   Tokens.erase(Tokens.end() - 2);
   return true;
 }
@@ -163,15 +163,15 @@ bool FormatTokenLexer::tryMergeTokens(ArrayRef<tok::TokenKind> Kinds,
   unsigned AddLength = 0;
   for (unsigned i = 1; i < Kinds.size(); ++i) {
     if (!First[i]->is(Kinds[i]) ||
-        First[i]->WhitespaceRange.getBegin() !=
-            First[i]->WhitespaceRange.getEnd())
+        First[i]->PrecedingWhitespaceRange.getBegin() !=
+            First[i]->PrecedingWhitespaceRange.getEnd())
       return false;
     AddLength += First[i]->TokenText.size();
   }
   Tokens.resize(Tokens.size() - Kinds.size() + 1);
   First[0]->TokenText = StringRef(First[0]->TokenText.data(),
                                   First[0]->TokenText.size() + AddLength);
-  First[0]->ColumnWidth += AddLength;
+  First[0]->FirstLineColumnWidth += AddLength;
   First[0]->Type = NewType;
   return true;
 }
@@ -265,7 +265,7 @@ void FormatTokenLexer::tryParseJSRegexLiteral() {
   // Treat regex literals like other string_literals.
   RegexToken->Tok.setKind(tok::string_literal);
   RegexToken->TokenText = StringRef(RegexBegin, Offset - RegexBegin);
-  RegexToken->ColumnWidth = RegexToken->TokenText.size();
+  RegexToken->FirstLineColumnWidth = RegexToken->TokenText.size();
 
   resetLexer(SourceMgr.getFileOffset(Lex->getSourceLocation(Offset)));
 }
@@ -320,7 +320,7 @@ void FormatTokenLexer::handleTemplateStrings() {
   StringRef FirstLineText = FirstBreak == StringRef::npos
                                 ? LiteralText
                                 : LiteralText.substr(0, FirstBreak);
-  BacktickToken->ColumnWidth = encoding::columnWidthWithTabs(
+  BacktickToken->FirstLineColumnWidth = encoding::columnWidthWithTabs(
       FirstLineText, BacktickToken->OriginalColumn, Style.TabWidth, Encoding);
   size_t LastBreak = LiteralText.rfind('\n');
   if (LastBreak != StringRef::npos) {
@@ -360,12 +360,12 @@ bool FormatTokenLexer::tryMerge_TMacro() {
   String->TokenText = StringRef(Start, End - Start);
   String->IsFirst = Macro->IsFirst;
   String->LastNewlineOffset = Macro->LastNewlineOffset;
-  String->WhitespaceRange = Macro->WhitespaceRange;
+  String->PrecedingWhitespaceRange = Macro->PrecedingWhitespaceRange;
   String->OriginalColumn = Macro->OriginalColumn;
-  String->ColumnWidth = encoding::columnWidthWithTabs(
+  String->FirstLineColumnWidth = encoding::columnWidthWithTabs(
       String->TokenText, String->OriginalColumn, Style.TabWidth, Encoding);
-  String->NewlinesBefore = Macro->NewlinesBefore;
-  String->HasUnescapedNewline = Macro->HasUnescapedNewline;
+  String->UserNewlinesBefore = Macro->UserNewlinesBefore;
+  String->HasUnescapedNewlineBefore = Macro->HasUnescapedNewlineBefore;
 
   Tokens.pop_back();
   Tokens.pop_back();
@@ -375,7 +375,7 @@ bool FormatTokenLexer::tryMerge_TMacro() {
 }
 
 bool FormatTokenLexer::tryMergeConflictMarkers() {
-  if (Tokens.back()->NewlinesBefore == 0 && Tokens.back()->isNot(tok::eof))
+  if (Tokens.back()->UserNewlinesBefore == 0 && Tokens.back()->isNot(tok::eof))
     return false;
 
   // Conflict lines look like:
@@ -447,9 +447,9 @@ FormatToken *FormatTokenLexer::getStashedToken() {
   SourceLocation TokLocation =
       FormatTok->Tok.getLocation().getLocWithOffset(Tok.getLength() - 1);
   FormatTok->Tok.setLocation(TokLocation);
-  FormatTok->WhitespaceRange = SourceRange(TokLocation, TokLocation);
+  FormatTok->PrecedingWhitespaceRange = SourceRange(TokLocation, TokLocation);
   FormatTok->TokenText = TokenText;
-  FormatTok->ColumnWidth = 1;
+  FormatTok->FirstLineColumnWidth = 1;
   FormatTok->OriginalColumn = OriginalColumn + 1;
 
   return FormatTok;
@@ -491,8 +491,8 @@ FormatToken *FormatTokenLexer::getNextToken() {
     for (int i = 0, e = Text.size(); i != e; ++i) {
       switch (Text[i]) {
       case '\n':
-        ++FormatTok->NewlinesBefore;
-        FormatTok->HasUnescapedNewline = !EscapesNewline(i - 1);
+        ++FormatTok->UserNewlinesBefore;
+        FormatTok->HasUnescapedNewlineBefore = !EscapesNewline(i - 1);
         FormatTok->LastNewlineOffset = WhitespaceLength + i + 1;
         Column = 0;
         break;
@@ -535,14 +535,14 @@ FormatToken *FormatTokenLexer::getNextToken() {
   // FIXME: Add a more explicit test.
   while (FormatTok->TokenText.size() > 1 && FormatTok->TokenText[0] == '\\' &&
          FormatTok->TokenText[1] == '\n') {
-    ++FormatTok->NewlinesBefore;
+    ++FormatTok->UserNewlinesBefore;
     WhitespaceLength += 2;
     FormatTok->LastNewlineOffset = 2;
     Column = 0;
     FormatTok->TokenText = FormatTok->TokenText.substr(2);
   }
 
-  FormatTok->WhitespaceRange = SourceRange(
+  FormatTok->PrecedingWhitespaceRange = SourceRange(
       WhitespaceStart, WhitespaceStart.getLocWithOffset(WhitespaceLength));
 
   FormatTok->OriginalColumn = Column;
@@ -587,14 +587,14 @@ FormatToken *FormatTokenLexer::getNextToken() {
   if (FirstNewlinePos == StringRef::npos) {
     // FIXME: ColumnWidth actually depends on the start column, we need to
     // take this into account when the token is moved.
-    FormatTok->ColumnWidth =
+    FormatTok->FirstLineColumnWidth =
         encoding::columnWidthWithTabs(Text, Column, Style.TabWidth, Encoding);
-    Column += FormatTok->ColumnWidth;
+    Column += FormatTok->FirstLineColumnWidth;
   } else {
     FormatTok->IsMultiline = true;
     // FIXME: ColumnWidth actually depends on the start column, we need to
     // take this into account when the token is moved.
-    FormatTok->ColumnWidth = encoding::columnWidthWithTabs(
+    FormatTok->FirstLineColumnWidth = encoding::columnWidthWithTabs(
         Text.substr(0, FirstNewlinePos), Column, Style.TabWidth, Encoding);
 
     // The last line of the token always starts in column 0.

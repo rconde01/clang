@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "FormatTestUtils.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "llvm/Support/Debug.h"
 #include "gtest/gtest.h"
 
@@ -169,7 +169,7 @@ TEST_F(SortIncludesTest, HandlesAngledIncludesAsSeparateBlocks) {
                  "#include \"c.h\"\n"
                  "#include \"a.h\"\n"));
 
-  Style = getGoogleStyle(FormatStyle::LK_Cpp);
+  Style = getGoogleStyle();
   EXPECT_EQ("#include <b.h>\n"
             "#include <d.h>\n"
             "#include \"a.h\"\n"

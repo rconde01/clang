@@ -83,7 +83,7 @@ continuesLineComment(const FormatToken & FormatTok,
       return false;
    unsigned MinContinueColumn = MinColumnToken->OriginalColumn
                                 + (isLineComment(*MinColumnToken) ? 0 : 1);
-   return isLineComment(FormatTok) && FormatTok.NewlinesBefore == 1
+   return isLineComment(FormatTok) && FormatTok.UserNewlinesBefore == 1
           && isLineComment(*Previous)
           && FormatTok.OriginalColumn >= MinContinueColumn;
 }
@@ -142,7 +142,7 @@ public:
 private:
    bool eof()
    {
-      return Token && Token->HasUnescapedNewline
+      return Token && Token->HasUnescapedNewlineBefore
              && !continuesLineComment(*Token,
                                       PreviousToken,
                                       /*MinColumnToken=*/PreviousToken);
@@ -768,8 +768,8 @@ UnwrappedLineParser::parsePPDefine()
    }
    nextToken();
    if(FormatTok->Tok.getKind() == tok::l_paren
-      && FormatTok->WhitespaceRange.getBegin()
-             == FormatTok->WhitespaceRange.getEnd())
+      && FormatTok->PrecedingWhitespaceRange.getBegin()
+             == FormatTok->PrecedingWhitespaceRange.getEnd())
    {
       parseParens();
    }
@@ -1047,8 +1047,8 @@ UnwrappedLineParser::parseStructuralElement()
 
             bool FollowedByNewline =
                 CommentsBeforeNextToken.empty()
-                    ? FormatTok->NewlinesBefore > 0
-                    : CommentsBeforeNextToken.front()->NewlinesBefore > 0;
+                    ? FormatTok->UserNewlinesBefore > 0
+                    : CommentsBeforeNextToken.front()->UserNewlinesBefore > 0;
 
             if(FollowedByNewline && (Text.size() >= 5 || FunctionLike)
                && tokenCanStartNewLine(FormatTok->Tok) && Text == Text.upper())
@@ -1819,8 +1819,8 @@ UnwrappedLineParser::eof() const
 bool
 UnwrappedLineParser::isOnNewLine(const FormatToken & FormatTok)
 {
-   return (Line->InPPDirective || FormatTok.HasUnescapedNewline)
-          && FormatTok.NewlinesBefore > 0;
+   return (Line->InPPDirective || FormatTok.HasUnescapedNewlineBefore)
+          && FormatTok.UserNewlinesBefore > 0;
 }
 
 // Checks if \p FormatTok is a line comment that continues the line comment
@@ -1922,7 +1922,7 @@ continuesLineCommentSection(const FormatToken &   FormatTok,
       PreviousToken = Node.Tok;
 
       // Grab the last newline preceding a token in this unwrapped line.
-      if(Node.Tok->NewlinesBefore > 0)
+      if(Node.Tok->UserNewlinesBefore > 0)
       {
          MinColumnToken = Node.Tok;
       }
@@ -2062,7 +2062,7 @@ UnwrappedLineParser::readToken()
       FormatTok = Tokens->getNextToken();
       assert(FormatTok);
       while(!Line->InPPDirective && FormatTok->Tok.is(tok::hash)
-            && (FormatTok->HasUnescapedNewline || FormatTok->IsFirst))
+            && (FormatTok->HasUnescapedNewlineBefore || FormatTok->IsFirst))
       {
          distributeComments(Comments, FormatTok);
          Comments.clear();

@@ -127,7 +127,7 @@ tooling::Replacements UsingDeclarationsSorter::analyze(
       endUsingDeclarationBlock(&UsingDeclarations, SourceMgr, &Fixes);
       continue;
     }
-    if (AnnotatedLines[I]->First->NewlinesBefore > 1)
+    if (AnnotatedLines[I]->First->UserNewlinesBefore > 1)
       endUsingDeclarationBlock(&UsingDeclarations, SourceMgr, &Fixes);
     std::string Label = computeUsingDeclarationLabel(AnnotatedLines[I]->First);
     if (Label.empty()) {

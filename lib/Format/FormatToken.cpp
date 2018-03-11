@@ -84,14 +84,14 @@ unsigned CommaSeparatedList::formatAfterToken(LineState &State,
   const FormatToken *LBrace =
       State.NextToken->Previous->getPreviousNonComment();
   if (!LBrace || !LBrace->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare) ||
-      LBrace->BlockKind == BK_Block || LBrace->Type == TT_DictLiteral ||
+      LBrace->BlockKind == BK_Block || LBrace->Type == TT_ObjCDictLiteral ||
       LBrace->Next->Type == TT_DesignatedInitializerPeriod)
     return 0;
 
   // Calculate the number of code points we have to format this list. As the
   // first token is already placed, we have to subtract it.
   unsigned RemainingCodePoints =
-      Style.ColumnLimit - State.Column + State.NextToken->Previous->ColumnWidth;
+      Style.ColumnLimit - State.Column + State.NextToken->Previous->FirstLineColumnWidth;
 
   // Find the best ColumnFormat, i.e. the best number of columns to use.
   const ColumnFormat *Format = getColumnFormat(RemainingCodePoints);
@@ -106,7 +106,7 @@ unsigned CommaSeparatedList::formatAfterToken(LineState &State,
   unsigned Penalty = 0;
   unsigned Column = 0;
   unsigned Item = 0;
-  while (State.NextToken != LBrace->MatchingParen) {
+  while (State.NextToken != LBrace->MatchingPairedToken) {
     bool NewLine = false;
     unsigned ExtraSpaces = 0;
 
@@ -145,12 +145,12 @@ unsigned CommaSeparatedList::formatFromToken(LineState &State,
 static unsigned CodePointsBetween(const FormatToken *Begin,
                                   const FormatToken *End) {
   assert(End->TotalLength >= Begin->TotalLength);
-  return End->TotalLength - Begin->TotalLength + Begin->ColumnWidth;
+  return End->TotalLength - Begin->TotalLength + Begin->FirstLineColumnWidth;
 }
 
 void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
   // FIXME: At some point we might want to do this for other lists, too.
-  if (!Token->MatchingParen ||
+  if (!Token->MatchingPairedToken ||
       !Token->isOneOf(tok::l_brace, TT_ArrayInitializerLSquare))
     return;
 
@@ -183,7 +183,7 @@ void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
   bool HasSeparatingComment = false;
   for (unsigned i = 0, e = Commas.size() + 1; i != e; ++i) {
     // Skip comments on their own line.
-    while (ItemBegin->HasUnescapedNewline && ItemBegin->isTrailingComment()) {
+    while (ItemBegin->HasUnescapedNewlineBefore && ItemBegin->isTrailingComment()) {
       ItemBegin = ItemBegin->Next;
       HasSeparatingComment = i > 0;
     }
@@ -193,7 +193,7 @@ void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
       HasNestedBracedList = true;
     const FormatToken *ItemEnd = nullptr;
     if (i == Commas.size()) {
-      ItemEnd = Token->MatchingParen;
+      ItemEnd = Token->MatchingPairedToken;
       const FormatToken *NonCommentEnd = ItemEnd->getPreviousNonComment();
       ItemLengths.push_back(CodePointsBetween(ItemBegin, NonCommentEnd));
       if (Style.Cpp11BracedListStyle &&
@@ -204,7 +204,7 @@ void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
           ItemEnd = ItemEnd->Next;
       } else {
         // In other braced lists styles, the "}" can be wrapped to the new line.
-        ItemEnd = Token->MatchingParen->Previous;
+        ItemEnd = Token->MatchingPairedToken->Previous;
       }
     } else {
       ItemEnd = Commas[i];
@@ -212,14 +212,14 @@ void CommaSeparatedList::precomputeFormattingInfos(const FormatToken *Token) {
       ItemLengths.push_back(CodePointsBetween(ItemBegin, ItemEnd));
 
       // Consume trailing comments so the are included in EndOfLineItemLength.
-      if (ItemEnd->Next && !ItemEnd->Next->HasUnescapedNewline &&
+      if (ItemEnd->Next && !ItemEnd->Next->HasUnescapedNewlineBefore &&
           ItemEnd->Next->isTrailingComment())
         ItemEnd = ItemEnd->Next;
     }
     EndOfLineItemLength.push_back(CodePointsBetween(ItemBegin, ItemEnd));
     // If there is a trailing comma in the list, the next item will start at the
     // closing brace. Don't create an extra item for this.
-    if (ItemEnd->getNextNonComment() == Token->MatchingParen)
+    if (ItemEnd->getNextNonComment() == Token->MatchingPairedToken)
       break;
     ItemBegin = ItemEnd->Next;
   }

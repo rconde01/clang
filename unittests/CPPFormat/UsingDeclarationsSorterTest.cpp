@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 
 #include "llvm/Support/Debug.h"
 #include "gtest/gtest.h"

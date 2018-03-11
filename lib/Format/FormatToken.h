@@ -42,7 +42,7 @@ namespace format {
   TYPE(CtorInitializerComma) \
   TYPE(DesignatedInitializerLSquare) \
   TYPE(DesignatedInitializerPeriod) \
-  TYPE(DictLiteral) \
+  TYPE(ObjCDictLiteral) \
   TYPE(ForEachMacro) \
   TYPE(FunctionAnnotationRParen) \
   TYPE(FunctionDeclarationName) \
@@ -126,14 +126,14 @@ struct FormatToken {
   ///
   /// This can be used to determine what the user wrote in the original code
   /// and thereby e.g. leave an empty line between two function definitions.
-  unsigned NewlinesBefore = 0;
+  unsigned UserNewlinesBefore = 0;
 
   /// \brief Whether there is at least one unescaped newline before the \c
   /// Token.
-  bool HasUnescapedNewline = false;
+  bool HasUnescapedNewlineBefore = false;
 
   /// \brief The range of the whitespace immediately preceding the \c Token.
-  SourceRange WhitespaceRange;
+  SourceRange PrecedingWhitespaceRange;
 
   /// \brief The offset just past the last '\n' in this token's leading
   /// whitespace (relative to \c WhiteSpaceStart). 0 if there is no '\n'.
@@ -142,7 +142,7 @@ struct FormatToken {
   /// \brief The width of the non-whitespace parts of the token (or its first
   /// line for multi-line tokens) in columns.
   /// We need this to correctly measure number of columns a token spans.
-  unsigned ColumnWidth = 0;
+  unsigned FirstLineColumnWidth = 0;
 
   /// \brief Contains the width in columns of the last line of a multi-line
   /// token.
@@ -273,7 +273,7 @@ struct FormatToken {
   bool ContinuesLineCommentSection = false;
 
   /// \brief If this is a bracket, this points to the matching one.
-  FormatToken *MatchingParen = nullptr;
+  FormatToken *MatchingPairedToken = nullptr;
 
   /// \brief The previous token in the unwrapped line.
   FormatToken *Previous = nullptr;
@@ -391,7 +391,7 @@ struct FormatToken {
 
   bool isTrailingComment() const {
     return is(tok::comment) &&
-           (is(TT_LineComment) || !Next || Next->NewlinesBefore > 0);
+           (is(TT_LineComment) || !Next || Next->UserNewlinesBefore > 0);
   }
 
   /// \brief Returns \c true if this is a keyword that can be used
@@ -435,7 +435,7 @@ struct FormatToken {
   /// This can be different to Tok.getLocation(), which includes leading escaped
   /// newlines.
   SourceLocation getStartOfNonWhitespace() const {
-    return WhitespaceRange.getEnd();
+    return PrecedingWhitespaceRange.getEnd();
   }
 
   prec::Level getPrecedence() const {
@@ -465,7 +465,7 @@ struct FormatToken {
       return true;
     return is(TT_ArrayInitializerLSquare) ||
            (is(tok::l_brace) &&
-            (BlockKind == BK_Block || is(TT_DictLiteral) ||
+            (BlockKind == BK_Block || is(TT_ObjCDictLiteral) ||
              (!Style.Cpp11BracedListStyle && NestingLevel == 0))) ||
            (is(tok::less) && (Style.Language == FormatStyle::LK_Proto ||
                               Style.Language == FormatStyle::LK_TextProto));
@@ -475,7 +475,7 @@ struct FormatToken {
   bool closesBlockOrBlockTypeList(const FormatStyle &Style) const {
     if (is(TT_TemplateString) && closesScope())
       return true;
-    return MatchingParen && MatchingParen->opensBlockOrBlockTypeList(Style);
+    return MatchingPairedToken && MatchingPairedToken->opensBlockOrBlockTypeList(Style);
   }
 
   /// \brief Return the actual namespace token, if this token starts a namespace

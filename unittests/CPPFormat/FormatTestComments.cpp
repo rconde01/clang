@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 
 #include "../Tooling/ReplacementTest.h"
 #include "FormatTestUtils.h"
@@ -24,8 +24,6 @@ using clang::tooling::ReplacementTest;
 namespace clang {
 namespace format {
 namespace {
-
-FormatStyle getGoogleStyle() { return getGoogleStyle(FormatStyle::LK_Cpp); }
 
 class FormatTestComments : public ::testing::Test {
 protected:

@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "llvm/Support/Debug.h"

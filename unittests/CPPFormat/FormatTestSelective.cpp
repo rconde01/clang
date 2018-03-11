@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "FormatTestUtils.h"
-#include "clang/Format/Format.h"
+#include "clang/CPPFormat/Format.h"
 #include "llvm/Support/Debug.h"
 #include "gtest/gtest.h"
 
@@ -516,18 +516,6 @@ TEST_F(FormatTestSelective, StopFormattingWhenLeavingScope) {
              "void g() {\n" // Make sure not to format this.
              "}",
              15, 0));
-}
-
-TEST_F(FormatTestSelective, SelectivelyRequoteJavaScript) {
-  Style = getGoogleStyle(FormatStyle::LK_JavaScript);
-  EXPECT_EQ(
-      "var x = \"a\";\n"
-      "var x = 'a';\n"
-      "var x = \"a\";",
-      format("var x = \"a\";\n"
-             "var x = \"a\";\n"
-             "var x = \"a\";",
-             20, 0));
 }
 
 TEST_F(FormatTestSelective, KeepsIndentAfterCommentSectionImport) {

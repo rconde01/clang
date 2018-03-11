@@ -1647,13 +1647,6 @@ TEST_F(FormatTest, FormatTryCatchBraceStyles) {
                "  // something\n"
                "}",
                Style);
-  verifyFormat("@try {\n"
-               "  // something\n"
-               "}\n"
-               "@finally {\n"
-               "  // something\n"
-               "}",
-               Style);
   Style.BreakBeforeBraces = FormatStyle::BS_Allman;
   verifyFormat("try\n"
                "{\n"
@@ -4326,15 +4319,6 @@ TEST_F(FormatTest, AlignsStringLiterals) {
                "  L\"aaaaa\" #X L\"bbbbbb\" \\\n"
                "  L\"ccccc\"",
                getLLVMStyleWithColumns(25));
-
-  verifyFormat("f(@\"a\"\n"
-               "  @\"b\");");
-  verifyFormat("NSString s = @\"a\"\n"
-               "             @\"b\"\n"
-               "             @\"c\";");
-  verifyFormat("NSString s = @\"a\"\n"
-               "              \"b\"\n"
-               "              \"c\";");
 }
 
 TEST_F(FormatTest, ReturnTypeBreakingStyle) {
@@ -4535,13 +4519,6 @@ TEST_F(FormatTest, AlwaysBreakBeforeMultilineStrings) {
             format("xxxx = \"a\\\n"
                    "b\\\n"
                    "c\";",
-                   Break));
-
-  EXPECT_EQ("NSString *const kString =\n"
-            "    @\"aaaa\"\n"
-            "    @\"bbbb\";",
-            format("NSString *const kString = @\"aaaa\"\n"
-                   "@\"bbbb\";",
                    Break));
 
   Break.ColumnLimit = 0;
@@ -7281,10 +7258,6 @@ TEST_F(FormatTest, BreaksWideAndNSStringLiterals) {
   EXPECT_EQ("L\"wide string \"\n"
             "L\"literal\";",
             format("L\"wide string literal\";", getGoogleStyleWithColumns(16)));
-  EXPECT_EQ("@\"NSString \"\n"
-            "@\"literal\";",
-            format("@\"NSString literal\";", getGoogleStyleWithColumns(19)));
-  verifyFormat(R"(NSString *s = @"那那那那";)", getLLVMStyleWithColumns(26));
 
   // This input makes clang-format try to split the incomplete unicode escape
   // sequence, which used to lead to a crasher.
@@ -9088,14 +9061,6 @@ TEST_F(FormatTest, AllmanBraceBreaking) {
                "}\n",
                AllmanBraceStyle);
 
-  verifyFormat("@interface BSApplicationController ()\n"
-               "{\n"
-               "@private\n"
-               "  id _extraIvar;\n"
-               "}\n"
-               "@end\n",
-               AllmanBraceStyle);
-
   verifyFormat("#ifdef _DEBUG\n"
                "int foo(int i = 0)\n"
                "#else\n"
@@ -9136,19 +9101,6 @@ TEST_F(FormatTest, AllmanBraceBreaking) {
                "  // ...\n"
                "  int i;\n"
                "};",
-               AllmanBraceStyle);
-  // .. or dict literals.
-  verifyFormat("void f()\n"
-               "{\n"
-               "  // ...\n"
-               "  [object someMethod:@{@\"a\" : @\"b\"}];\n"
-               "}",
-               AllmanBraceStyle);
-  verifyFormat("void f()\n"
-               "{\n"
-               "  // ...\n"
-               "  [object someMethod:@{a : @\"b\"}];\n"
-               "}",
                AllmanBraceStyle);
   verifyFormat("int f()\n"
                "{ // comment\n"
@@ -9288,14 +9240,6 @@ TEST_F(FormatTest, GNUBraceBreaking) {
                "{\n"
                "  Y = 0,\n"
                "}\n",
-               GNUBraceStyle);
-
-  verifyFormat("@interface BSApplicationController ()\n"
-               "{\n"
-               "@private\n"
-               "  id _extraIvar;\n"
-               "}\n"
-               "@end\n",
                GNUBraceStyle);
 
   verifyFormat("#ifdef _DEBUG\n"
@@ -10271,44 +10215,6 @@ TEST_F(FormatTest, FormatsWithWebKitStyle) {
             format("#define aNumber \\\n"
                    " 10",
                    Style));
-
-  // Keep empty and one-element array literals on a single line.
-  EXPECT_EQ("NSArray* a = [[NSArray alloc] initWithArray:@[]\n"
-            "                                  copyItems:YES];",
-            format("NSArray*a=[[NSArray alloc] initWithArray:@[]\n"
-                   "copyItems:YES];",
-                   Style));
-  EXPECT_EQ("NSArray* a = [[NSArray alloc] initWithArray:@[ @\"a\" ]\n"
-            "                                  copyItems:YES];",
-            format("NSArray*a=[[NSArray alloc]initWithArray:@[ @\"a\" ]\n"
-                   "             copyItems:YES];",
-                   Style));
-  // FIXME: This does not seem right, there should be more indentation before
-  // the array literal's entries. Nested blocks have the same problem.
-  EXPECT_EQ("NSArray* a = [[NSArray alloc] initWithArray:@[\n"
-            "    @\"a\",\n"
-            "    @\"a\"\n"
-            "]\n"
-            "                                  copyItems:YES];",
-            format("NSArray* a = [[NSArray alloc] initWithArray:@[\n"
-                   "     @\"a\",\n"
-                   "     @\"a\"\n"
-                   "     ]\n"
-                   "       copyItems:YES];",
-                   Style));
-  EXPECT_EQ(
-      "NSArray* a = [[NSArray alloc] initWithArray:@[ @\"a\", @\"a\" ]\n"
-      "                                  copyItems:YES];",
-      format("NSArray* a = [[NSArray alloc] initWithArray:@[ @\"a\", @\"a\" ]\n"
-             "   copyItems:YES];",
-             Style));
-
-  verifyFormat("[self.a b:c c:d];", Style);
-  EXPECT_EQ("[self.a b:c\n"
-            "        c:d];",
-            format("[self.a b:c\n"
-                   "c:d];",
-                   Style));
 }
 
 TEST_F(FormatTest, FormatsLambdas) {
@@ -10546,20 +10452,7 @@ TEST_F(FormatTest, FormatsBlocks) {
                "      // ...\n"
                "      int i;\n"
                "    }];");
-  verifyFormat("[myObject doSomethingWith:arg1\n"
-               "               firstBlock:-1\n"
-               "              secondBlock:^(Bar *b) {\n"
-               "                // ...\n"
-               "                int i;\n"
-               "              }];");
 
-  verifyFormat("f(^{\n"
-               "  @autoreleasepool {\n"
-               "    if (a) {\n"
-               "      g();\n"
-               "    }\n"
-               "  }\n"
-               "});");
   verifyFormat("Block b = ^int *(A *a, B *b) {}");
   verifyFormat("BOOL (^aaa)(void) = ^BOOL {\n"
                "};");

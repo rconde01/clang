@@ -186,7 +186,7 @@ public:
     }
 
     // Separate references from the main code body of the file.
-    if (FirstNonImportLine && FirstNonImportLine->First->NewlinesBefore < 2)
+    if (FirstNonImportLine && FirstNonImportLine->First->UserNewlinesBefore < 2)
       ReferencesText += "\n";
 
     DEBUG(llvm::dbgs() << "Replacing imports:\n"
@@ -420,7 +420,7 @@ private:
       Symbol.Symbol = Current->TokenText;
       // Make sure to include any preceding comments.
       Symbol.Range.setBegin(
-          Current->getPreviousNonComment()->Next->WhitespaceRange.getBegin());
+          Current->getPreviousNonComment()->Next->PrecedingWhitespaceRange.getBegin());
       nextToken();
 
       if (Current->is(Keywords.kw_as)) {

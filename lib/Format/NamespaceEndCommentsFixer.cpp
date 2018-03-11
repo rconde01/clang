@@ -187,7 +187,7 @@ tooling::Replacements NamespaceEndCommentsFixer::analyze(
     if (!EndCommentNextTok && I + 1 < E)
       EndCommentNextTok = AnnotatedLines[I + 1]->First;
     bool AddNewline = EndCommentNextTok &&
-                      EndCommentNextTok->NewlinesBefore == 0 &&
+                      EndCommentNextTok->UserNewlinesBefore == 0 &&
                       EndCommentNextTok->isNot(tok::eof);
     const std::string EndCommentText =
         computeEndCommentText(NamespaceName, AddNewline);

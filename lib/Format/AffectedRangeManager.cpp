@@ -34,7 +34,7 @@ bool AffectedRangeManager::computeAffectedLines(
     if (Line->InPPDirective) {
       FormatToken *Last = Line->Last;
       SmallVectorImpl<AnnotatedLine *>::iterator PPEnd = I + 1;
-      while (PPEnd != E && !(*PPEnd)->First->HasUnescapedNewline) {
+      while (PPEnd != E && !(*PPEnd)->First->HasUnescapedNewlineBefore) {
         Last = (*PPEnd)->Last;
         ++PPEnd;
       }
@@ -72,7 +72,7 @@ bool AffectedRangeManager::affectsCharSourceRange(
 bool AffectedRangeManager::affectsTokenRange(const FormatToken &First,
                                              const FormatToken &Last,
                                              bool IncludeLeadingNewlines) {
-  SourceLocation Start = First.WhitespaceRange.getBegin();
+  SourceLocation Start = First.PrecedingWhitespaceRange.getBegin();
   if (!IncludeLeadingNewlines)
     Start = Start.getLocWithOffset(First.LastNewlineOffset);
   SourceLocation End = Last.getStartOfNonWhitespace();
@@ -83,8 +83,8 @@ bool AffectedRangeManager::affectsTokenRange(const FormatToken &First,
 
 bool AffectedRangeManager::affectsLeadingEmptyLines(const FormatToken &Tok) {
   CharSourceRange EmptyLineRange = CharSourceRange::getCharRange(
-      Tok.WhitespaceRange.getBegin(),
-      Tok.WhitespaceRange.getBegin().getLocWithOffset(Tok.LastNewlineOffset));
+      Tok.PrecedingWhitespaceRange.getBegin(),
+      Tok.PrecedingWhitespaceRange.getBegin().getLocWithOffset(Tok.LastNewlineOffset));
   return affectsCharSourceRange(EmptyLineRange);
 }
 
@@ -131,11 +131,11 @@ bool AffectedRangeManager::nonPPLineAffected(
   // Was this line moved, i.e. has it previously been on the same line as an
   // affected line?
   bool LineMoved = PreviousLine && PreviousLine->Affected &&
-                   Line->First->NewlinesBefore == 0;
+                   Line->First->UserNewlinesBefore == 0;
 
   bool IsContinuedComment =
       Line->First->is(tok::comment) && Line->First->Next == nullptr &&
-      Line->First->NewlinesBefore < 2 && PreviousLine &&
+      Line->First->UserNewlinesBefore < 2 && PreviousLine &&
       PreviousLine->Affected && PreviousLine->Last->is(tok::comment);
 
   if (SomeTokenAffected || SomeFirstChildAffected || LineMoved ||
